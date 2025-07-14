@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Ant Farm 3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+	<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.js"></script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.162/examples/jsm/controls/OrbitControls.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa0522d); // brownish background
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(10, 10, 20);
+
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(5, 5, 0); // center view
+controls.update();
+
+// Farm dimensions
+const WIDTH = 10;
+const HEIGHT = 10;
+const DEPTH = 2;
+
+const blockSize = 1;
+
+// Create materials for dirt at different health levels
+const materials = [
+    new THREE.MeshLambertMaterial({color: 0x5e3c16}), // health 3
+    new THREE.MeshLambertMaterial({color: 0x7a5230}), // health 2
+    new THREE.MeshLambertMaterial({color: 0xa9745c}), // health 1
+];
+
+// Block data
+const blocks = [];
+
+// Geometry reused for all blocks
+const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+
+// Create grid of dirt blocks
+for (let x = 0; x < WIDTH; x++) {
+    for (let y = 0; y < HEIGHT; y++) {
+        for (let z = 0; z < DEPTH; z++) {
+            const block = new THREE.Mesh(geometry, materials[0].clone());
+            block.position.set(
+                x * blockSize,
+                y * blockSize,
+                z * blockSize
+            );
+            block.userData.health = 3;
+            scene.add(block);
+            blocks.push(block);
+        }
+    }
+}
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 20, 10);
+scene.add(dirLight);
+
+// Resize handler
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Raycaster for digging on click
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener('click', (event) => {
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(blocks);
+    if (intersects.length > 0) {
+        const block = intersects[0].object;
+        if (block.userData.health > 0) {
+            block.userData.health--;
+            if (block.userData.health > 0) {
+                block.material = materials[3 - block.userData.health];
+            } else {
+                // Remove dug block
+                scene.remove(block);
+            }
+        }
+    }
+});
+
+// Animation loop
+function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
