@@ -1,7 +1,7 @@
 # Antfarm-JS
 Basic JavaScript AntFarm game. Used ChatGPT to start it out.
 # Link
-https://htmlpreview.github.io/?https://raw.githubusercontent.com/brianhgt/Antfarm-JS/refs/heads/main/ants.html
+[Antfarm JS](https://brianhgt.github.io/Antfarm-JS/ants.html)
 
 # Game Features
 * Two colonies of ants
