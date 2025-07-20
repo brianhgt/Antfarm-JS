@@ -6,13 +6,13 @@
 <style>
   body { margin:0; background:#333; color:#fff; font-family:sans-serif; }
   #gameCanvas { display:block; margin: 20px auto; background: #3A2414; border:4px solid #222; box-shadow:0 0 10px #000; }
-  h1 { text-align:center; }
+  h3 { text-align:center; }
 </style>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-<h1>🐜 Antfarm JS 🐜</h1>
-<canvas id="gameCanvas" width="1000" height="600"></canvas>
+<h3>🐜 Antfarm JS 🐜</h3>
+<canvas id="gameCanvas" width="1300" height="600"></canvas>
 <script>
 var jq = jQuery.noConflict();
 
@@ -22,6 +22,7 @@ const ctx = canvas.getContext("2d");
 
 const TILE_SIZE=20, COLS=Math.floor(canvas.width/TILE_SIZE), ROWS=Math.floor(canvas.height/TILE_SIZE);
 const TILE={ EMPTY:0, DIRT:1, FOOD:2, NEST:3, EGG:4 };
+const ANT_TYPE = { QUEEN:0, WORKER:1, SOLDIER:2, FEMALE:3, MALE:4 };
 const TILE_OPEN_SPACE=10;
 const SPIDER_CAN_GO_BELOW = false;
 const EGG_HATCH_TIME=1000;
@@ -51,29 +52,33 @@ for(let i=0;i<20;i++){
 
 let spiderScore=0;
 const colonies=[
-  {name:"A", color:"black", nest:{}, eggs:[], workers:[], player:{}, score:0,playerTarget:null},
-  {name:"B", color:"red", nest:{}, eggs:[], workers:[], player:{}, score:0,playerTarget:null}
+  {name:"A", color:"black", nest:{}, eggs:[], workers:[], soldiers:[], player:{}, score:0, playerTarget:null},
+  {name:"B", color:"red", nest:{}, eggs:[], workers:[], soldiers:[], player:{}, score:0, playerTarget:null}
 ];
 
-//const eggs=[];
-const spiders=[{x:4,y:2,target:null,path:null,pathIndex:0},{x:COLS-4,y:2,target:null,path:null,pathIndex:0}];
+
+const spiders=[{x:4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME},{x:COLS-4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME}];
 const skulls=[];
 
 colonies.forEach((col)=>{
   let nx=0, ny=0;
   do{
     //subtract 2 for egg spawn distance
-    nx = 2 + Math.floor(Math.random()*(COLS - 2));
-    ny = 2 + TILE_OPEN_SPACE+Math.floor(Math.random()*(ROWS - TILE_OPEN_SPACE - 2));
+    nx = 2 + Math.floor(Math.random()*(COLS - 4));
+    ny = 2 + TILE_OPEN_SPACE + Math.floor(Math.random()*(ROWS - TILE_OPEN_SPACE - 4));
   }while(map[ny][nx]!=TILE.DIRT);
   map[ny][nx]=TILE.NEST;
-  col.nest={x:nx, y:ny};
+  map[ny + 1][nx]=TILE.NEST;
+  col.nest={x:nx, y:ny, sX:nx, sY:ny+1};
+  
+  //place player
   col.player={x:nx+0.5, y:ny+0.5, carrying:null};
+  
   // spawn egg
-  let ex=nx+1, ey=ny;
-  if(map[ey][ex]==TILE.DIRT){
-    map[ey][ex]=TILE.EGG;
-    col.eggs.push({x:ex, y:ey, timer:EGG_HATCH_TIME});
+  let ex = nx+1, ey = ny;
+  if(map[ey][ex] == TILE.DIRT) {
+    map[ey][ex] = TILE.EGG;
+    col.eggs.push({x:ex, y:ey, type:ANT_TYPE.WORKER, timer:EGG_HATCH_TIME});
   }
 });
 
@@ -116,127 +121,213 @@ function update(){
 	let dx=0, dy=0;
 	let ex=0, ey=0;
 	
-		//player 1
-		if(keys['a'])dx=-0.1;
-		if(keys['d'])dx=0.1;
-		if(keys['w'])dy=-0.1;
-		if(keys['s'])dy=0.1;
-		
-		colonies[0].player.x=Math.max(0,Math.min(COLS-1,colonies[0].player.x+dx));
-		colonies[0].player.y=Math.max(0,Math.min(ROWS-1,colonies[0].player.y+dy));
-		
-		// pickup/drop with 'e'
-		if(keys['e']){
-			keys['e']=false; // prevent repeat
-			let tx=Math.floor(colonies[0].player.x), ty=Math.floor(colonies[0].player.y);
-			if(!colonies[0].player.carrying){
-			  if(map[ty][tx]==TILE.FOOD || map[ty][tx]==TILE.EGG){
-				colonies[0].player.carrying=map[ty][tx];
-				map[ty][tx]=TILE.EMPTY;
-			  }
-			}else{
-			  if(map[ty][tx]==TILE.EMPTY){
-				map[ty][tx] = colonies[0].player.carrying;
-				colonies[0].player.carrying = null;
-			  }
-			}
-		}
-		
+	//player 1
+	if(keys['a'])dx=-0.1;
+	if(keys['d'])dx=0.1;
+	if(keys['w'])dy=-0.1;
+	if(keys['s'])dy=0.1;
 	
-		//player 2
-		if(keys['ArrowLeft'])ex=-0.1;
-		if(keys['ArrowRight'])ex=0.1;
-		if(keys['ArrowUp'])ey=-0.1;
-		if(keys['ArrowDown'])ey=0.1;
-		colonies[1].player.x=Math.max(0,Math.min(COLS-1,colonies[1].player.x+ex));
-		colonies[1].player.y=Math.max(0,Math.min(ROWS-1,colonies[1].player.y+ey));
+	colonies[0].player.x=Math.max(0,Math.min(COLS-1,colonies[0].player.x+dx));
+	colonies[0].player.y=Math.max(0,Math.min(ROWS-1,colonies[0].player.y+dy));
+	
+	// pickup/drop with 'e'
+	if(keys['e']){
+		keys['e']=false; // prevent repeat
+		let tx=Math.floor(colonies[0].player.x), ty=Math.floor(colonies[0].player.y);
+		if(!colonies[0].player.carrying){
+		  if(map[ty][tx]==TILE.FOOD || map[ty][tx]==TILE.EGG){
+			colonies[0].player.carrying=map[ty][tx];
+			map[ty][tx]=TILE.EMPTY;
+		  }
+		}else{
+		  if(map[ty][tx]==TILE.EMPTY){
+			map[ty][tx] = colonies[0].player.carrying;
+			colonies[0].player.carrying = null;
+		  }
+		}
+	}
+	
+
+	//player 2
+	if(keys['ArrowLeft'])ex = -0.1;
+	if(keys['ArrowRight'])ex = 0.1;
+	if(keys['ArrowUp'])ey = -0.1;
+	if(keys['ArrowDown'])ey = 0.1;
+	colonies[1].player.x=Math.max(0,Math.min(COLS-1,colonies[1].player.x+ex));
+	colonies[1].player.y=Math.max(0,Math.min(ROWS-1,colonies[1].player.y+ey));
 		
 
-  colonies.forEach((col,idx)=>{
+   colonies.forEach((col,idx)=>{
   
-    //hatch eggs
-	  for(let i=col.eggs.length-1;i>=0;i--){
-		col.eggs[i].timer--;
-		if(col.eggs[i].timer<=0){
-		  col.workers.push({x:col.eggs[i].x+0.5, y:col.eggs[i].y+0.5, path:null, pathIndex:0});
-		  map[col.eggs[i].y][col.eggs[i].x]=TILE.EMPTY;
-		  col.eggs.splice(i,1);
-		}
-	  }
-	  
-	
-    let player =col.player;
-    
-
-
-    // click target
-    if(col.playerTarget){
-      let ddx=col.playerTarget.x - player.x, ddy=col.playerTarget.y - player.y;
-      let dist=Math.sqrt(ddx*ddx+ddy*ddy);
-      if(dist>0.1) player.x+=0.1*ddx/dist, player.y+=0.1*ddy/dist;
-      else col.playerTarget=null;
-    }
-
-    let tx=Math.floor(player.x), ty=Math.floor(player.y);
-    if(map[ty][tx]==TILE.DIRT) map[ty][tx]=TILE.EMPTY;
-	if(!player.carrying && (map[ty][tx]==TILE.FOOD||map[ty][tx]==TILE.EGG)){
-		player.carrying=map[ty][tx]; map[ty][tx]=TILE.EMPTY;
-	}
-	if(tx==col.nest.x&&ty==col.nest.y && player.carrying){
-		if(player.carrying==TILE.FOOD){ player.score++; spawnEggNearNest(col); }
-		if(player.carrying==TILE.EGG){ col.workers.push({x:col.nest.x,y:col.nest.y,carrying:null,target:null,path:null,pathIndex:0}); }
-		player.carrying=null;
-	}
-
-    // workers: find food
-    col.workers.forEach(w=>{
-      if(!w.path){
-        let food=null;
-        for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(map[y][x]==TILE.FOOD) food={x,y};
-        if(food){
-		  let target=food[Math.floor(Math.random()*food.length)];
-          w.target=target;
-          w.path=findPath(Math.floor(w.x),Math.floor(w.y),food.x,food.y);
-          w.pathIndex=0;
-        }else{
-			let wander=getRandomNearbyEmptyTile(Math.floor(w.x),Math.floor(w.y),5);
-			if(wander){
-			  w.target=wander;
-			  w.path=findPath(Math.floor(w.x),Math.floor(w.y),wander.x,wander.y); w.pathIndex=0;
-			}
-		}
+      //hatch eggs
+      for(let i = col.eggs.length-1; i >= 0; i--) {
+         col.eggs[i].timer--;
+         if(col.eggs[i].timer<=0){
+            if(col.eggs[i].type == ANT_TYPE.SOLDIER) {
+               col.soldiers.push({x:col.eggs[i].x+0.5, y:col.eggs[i].y+0.5, path:null, pathIndex:0, type:ANT_TYPE.SOLDIER});
+            }
+            else {
+               col.workers.push({x:col.eggs[i].x+0.5, y:col.eggs[i].y+0.5, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
+            }
+            map[col.eggs[i].y][col.eggs[i].x] = TILE.EMPTY;
+            col.eggs.splice(i,1);
+         }
       }
-      if(w.path && w.pathIndex<w.path.length){
-        let next=w.path[w.pathIndex];
-        let dx=next.x+0.5 - w.x, dy=next.y+0.5 - w.y;
-        let len=Math.sqrt(dx*dx+dy*dy);
-        if(len<0.1){ w.x=next.x+0.5; w.y=next.y+0.5; w.pathIndex++; }
-        else{ w.x+=0.04*dx/len; w.y+=0.04*dy/len; }
-      } else { w.path=null; }
+      //hatch spiders
+      for(let i = spiders.length-1; i >= 0; i--) {
+         if(spiders[i].timer == -1) {
+            break;
+         }
+         else if(spiders[i].timer <= 0){
+            spiders[i].timer = -1;
+         }
+         else {
+            spiders[i].timer--;
+         }
+      }
+        
+      
+       let player = col.player;
+       
 
-      let wx = Math.floor(w.x), wy=Math.floor(w.y);
-      if(map[wy][wx]==TILE.DIRT) map[wy][wx]=TILE.EMPTY;
-	if(!w.carrying && map[wy][wx]==TILE.FOOD){
-		w.carrying=TILE.FOOD; map[wy][wx]=TILE.EMPTY;
-		w.target={x:col.nest.x,y:col.nest.y};
-		w.path=findPath(wx,wy,col.nest.x,col.nest.y); w.pathIndex=0;
-	}
-	if(w.carrying && wx==col.nest.x && wy==col.nest.y){
-		col.score++; w.carrying=null; w.target=null; w.path=null;
-		spawnEggNearNest(col);
-	}
-    });
+
+       // click target
+       if(col.playerTarget){
+         let ddx=col.playerTarget.x - player.x, ddy=col.playerTarget.y - player.y;
+         let dist=Math.sqrt(ddx*ddx+ddy*ddy);
+         if(dist>0.1) player.x+=0.1*ddx/dist, player.y+=0.1*ddy/dist;
+         else col.playerTarget=null;
+       }
+
+      let tx=Math.floor(player.x), ty=Math.floor(player.y);
+      if(map[ty][tx]==TILE.DIRT) map[ty][tx]=TILE.EMPTY;
+      if(!player.carrying && (map[ty][tx]==TILE.FOOD||map[ty][tx]==TILE.EGG)){
+         player.carrying=map[ty][tx]; map[ty][tx]=TILE.EMPTY;
+      }
+      if(tx==col.nest.x&&ty==col.nest.y && player.carrying){
+         if(player.carrying==TILE.FOOD){ player.score++; spawnEggNearNest(col, ANT_TYPE.WORKER); }
+         if(player.carrying==TILE.EGG){ 
+            col.workers.push({x:col.nest.x, y:col.nest.y, carrying:null, target:null, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
+         }
+         player.carrying=null;
+      }
+      if(tx==col.nest.sX&&ty==col.nest.sY && player.carrying) {
+         if(player.carrying==TILE.FOOD){ player.score++; spawnEggNearNest(col, ANT_TYPE.SOLDIER); }
+         if(player.carrying==TILE.EGG) {
+            col.soldiers.push({x:col.nest.sX, y:col.nest.sY, carrying:null, target:null, path:null, pathIndex:0, type:ANT_TYPE.SOLDIER});
+         }
+         player.carrying=null;
+      }
+
+      // workers: find food
+      col.workers.forEach(ant=>{
+         if(!ant.path){
+           let food=null;
+           for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(map[y][x]==TILE.FOOD) food={x,y};
+           if(food){
+           let target=food[Math.floor(Math.random()*food.length)];
+             ant.target=target;
+             ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),food.x,food.y);
+             ant.pathIndex=0;
+           }else{
+            let wander=getRandomNearbyEmptyTile(Math.floor(ant.x),Math.floor(ant.y),5);
+            if(wander){
+              ant.target=wander;
+              ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),wander.x,wander.y); ant.pathIndex=0;
+            }
+         }
+         }
+         if(ant.path && ant.pathIndex<ant.path.length) {
+           let next=ant.path[ant.pathIndex];
+           let dx=next.x+0.5 - ant.x, dy=next.y+0.5 - ant.y;
+           let len=Math.sqrt(dx*dx+dy*dy);
+           if(len<0.1){ ant.x=next.x+0.5; ant.y=next.y+0.5; ant.pathIndex++; }
+           else{ ant.x+=0.04*dx/len; ant.y+=0.04*dy/len; }
+         } else { ant.path=null; }
+
+         let antX = Math.floor(ant.x), antY=Math.floor(ant.y);
+         if(map[antY][antX]==TILE.DIRT) map[antY][antX]=TILE.EMPTY;
+         if(!ant.carrying && map[antY][antX]==TILE.FOOD){
+            ant.carrying=TILE.FOOD; map[antY][antX]=TILE.EMPTY;
+            ant.target={x:col.nest.x,y:col.nest.y};
+            ant.path=findPath(antX,antY,col.nest.x,col.nest.y); ant.pathIndex=0;
+         }
+         if(ant.carrying && antX == col.nest.x && antY == col.nest.y){
+            col.score++; ant.carrying=null; ant.target=null; ant.path=null;
+            spawnEggNearNest(col);
+         }
+      });
+      
+      // soldiers: find spiders
+      col.soldiers.forEach(ant=>{
+         if(!ant.path){
+           let food=null;
+           for(let i=0; i < spiders.length; i++) {
+               //if(spiders[i].timer == -1) {
+               //   food = {spiders[i].x, spiders[i].y};
+               //   break;
+               //}
+           }
+           if(food){
+               //let target=food[Math.floor(Math.random()*food.length)];
+               ant.target = food;
+               ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),food.x,food.y);
+               ant.pathIndex=0;
+           }else{
+               let wander=getRandomNearbyEmptyTile(Math.floor(ant.x),Math.floor(ant.y),5);
+               if(wander){
+                 ant.target=wander;
+                 ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),wander.x,wander.y); ant.pathIndex=0;
+               }
+            }
+         }
+         if(ant.path && ant.pathIndex<ant.path.length) {
+           let next=ant.path[ant.pathIndex];
+           let dx=next.x+0.5 - ant.x, dy=next.y+0.5 - ant.y;
+           let len=Math.sqrt(dx*dx+dy*dy);
+           if(len<0.1){ ant.x=next.x+0.5; ant.y=next.y+0.5; ant.pathIndex++; }
+           else{ ant.x+=0.04*dx/len; ant.y+=0.04*dy/len; }
+         } else { ant.path=null; }
+
+         let antX = Math.floor(ant.x), antY=Math.floor(ant.y);
+         if(map[antY][antX]==TILE.DIRT) map[antY][antX]=TILE.EMPTY;
+         /*if(!ant.carrying && map[antY][antX]==TILE.FOOD){
+            ant.carrying=TILE.FOOD; map[antY][antX]=TILE.EMPTY;
+            ant.target={x:col.nest.x,y:col.nest.y};
+            ant.path=findPath(antX,antY,col.nest.x,col.nest.y); ant.pathIndex=0;
+         }
+         if(ant.carrying && antX == col.nest.x && antY == col.nest.y){
+            col.score++; ant.carrying=null; ant.target=null; ant.path=null;
+            spawnEggNearNest(col);
+         }
+         */
+         
+         //attack spider
+         spiders.forEach(s=>{
+            if(Math.abs(ant.x - s.x) < 0.7 && Math.abs(ant.y - s.y) < 0.7){
+               //map[Math.floor(ant.y)][Math.floor(ant.x)] = TILE.DIRT;
+               skulls.push({x:s.x,y:s.y,timer:300});
+               //col.workers.splice(j,1);
+               //spiderScore++;
+               s.timer = EGG_HATCH_TIME;
+            }
+         });
+         
+      }); //END SOLDIER
   });
 
   // spiders chase nearest ant
   spiders.forEach(s=>{
+    if (s.timer != -1) {
+      return;
+    }
     let nearest = getNearestAnt(s);
     if(nearest && nearest.dist < 5){
 	  //chase
       if(!s.path || s.target.x!=Math.floor(nearest.ant.x)||s.target.y!=Math.floor(nearest.ant.y)){
         s.path = findPath(Math.floor(s.x),Math.floor(s.y),Math.floor(nearest.ant.x),Math.floor(nearest.ant.y));
         s.pathIndex = 0;
-		s.target = {x:Math.floor(nearest.ant.x), y:Math.floor(nearest.ant.y)};
+		  s.target = {x:Math.floor(nearest.ant.x), y:Math.floor(nearest.ant.y)};
       }
     }
 	else {
@@ -271,12 +362,12 @@ function update(){
 		s.target=null;
 	}
 
-    colonies.forEach(col=>{
+   colonies.forEach(col=>{
 		for(let j=col.workers.length-1; j>=0; j--){
 			let w=col.workers[j];
 			
 			
-			if(Math.abs(w.x - s.x)<0.7 && Math.abs(w.y - s.y)<0.7){
+			if(Math.abs(w.x - s.x) < 0.7 && Math.abs(w.y - s.y) < 0.7){
 				map[Math.floor(w.y)][Math.floor(w.x)]=TILE.DIRT;
 				skulls.push({x:w.x,y:w.y,timer:300});
 				col.workers.splice(j,1);
@@ -308,30 +399,53 @@ function update(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
-    let t=map[y][x];
-    if(t==TILE.DIRT)ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-    else if(t==TILE.FOOD)ctx.fillStyle="green",ctx.fillRect(x*TILE_SIZE+5,y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
-    else if(t==TILE.NEST)ctx.fillStyle="gray",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-    else if(t==TILE.EGG){ctx.fillStyle="white";ctx.beginPath();ctx.arc(x*TILE_SIZE+TILE_SIZE/2,y*TILE_SIZE+TILE_SIZE/2,TILE_SIZE/3,0,Math.PI*2);ctx.fill();}
+     let t=map[y][x];
+     if(t==TILE.DIRT)ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+     else if(t==TILE.FOOD)ctx.fillStyle="green",ctx.fillRect(x*TILE_SIZE+5,y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
+     /*else if(t==TILE.NEST) {
+       if(x == )
+       ctx.fillStyle = "gray",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+       ctx.fillStyle = "purple",ctx.fillRect(x*TILE_SIZE,(y*TILE_SIZE)+TILE_SIZE,TILE_SIZE,TILE_SIZE);
+     }*/
+    
+     else if(t==TILE.EGG){ctx.fillStyle="white";ctx.beginPath();ctx.arc(x*TILE_SIZE+TILE_SIZE/2,y*TILE_SIZE+TILE_SIZE/2,TILE_SIZE/3,0,Math.PI*2);ctx.fill();}
   }
   colonies.forEach(col=>{
+    
+    ctx.fillStyle = "gray",ctx.fillRect(col.nest.x*TILE_SIZE,col.nest.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+    ctx.fillStyle = "purple",ctx.fillRect(col.nest.sX*TILE_SIZE,col.nest.sY*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+    
     ctx.fillStyle=col.color; ctx.beginPath();
     ctx.arc(col.player.x*TILE_SIZE,col.player.y*TILE_SIZE,TILE_SIZE/2-2,0,Math.PI*2);ctx.fill();
     col.workers.forEach(w=>{
       ctx.fillStyle=col.color;
-	  ctx.beginPath();
+	   ctx.beginPath();
       ctx.arc(w.x*TILE_SIZE,w.y*TILE_SIZE,TILE_SIZE/2-3,0,Math.PI*2);ctx.fill();
-	  if(w.carrying){
-		ctx.fillStyle=w.carrying==TILE.FOOD?"green":"white";
-		ctx.fillRect(w.x*TILE_SIZE+4,w.y*TILE_SIZE+4,6,6);
-	  }
+	   if(w.carrying){
+		   ctx.fillStyle=w.carrying==TILE.FOOD?"green":"white";
+		   ctx.fillRect(w.x*TILE_SIZE+4,w.y*TILE_SIZE+4,6,6);
+	   }
+    });
+    col.soldiers.forEach(ant=>{
+      //ctx.fillStyle= blendColor(col.color, "#800080", 0.3); // 30% purple tint
+      //ctx.fillStyle = "purple";
+      ctx.fillStyle = col.color;
+	   ctx.beginPath();
+      ctx.arc(ant.x*TILE_SIZE, ant.y*TILE_SIZE, TILE_SIZE * 0.45, 0, Math.PI*4);ctx.fill();
     });
 	if(col.player.carrying){
       ctx.fillStyle=col.player.carrying==TILE.FOOD?"green":"white";
       ctx.fillRect(col.player.x*TILE_SIZE+4,col.player.y*TILE_SIZE+4,6,6);
     }
   });
-  spiders.forEach(s=>{ctx.fillStyle="darkblue";ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);});
+  spiders.forEach(s=>{
+      if(s.timer != -1) {
+         ctx.fillStyle="white";ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+      }
+      else {
+         ctx.fillStyle="darkblue";ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+      }
+  });
   for(let sk of skulls){ ctx.fillText("💀",sk.x*TILE_SIZE,sk.y*TILE_SIZE);}
 }
 
@@ -405,13 +519,13 @@ function getNearestAnt(s) {
 	return nearest?{ant:nearest,dist:minDist}:null;
 }
 
-function spawnEggNearNest(col){
+function spawnEggNearNest(col, type){
   let angle=Math.random()*Math.PI*2;
   let ex=col.nest.x+Math.floor(Math.cos(angle)*2);
   let ey=col.nest.y+Math.floor(Math.sin(angle)*2);
   if(ey>=0&&ey<ROWS&&ex>=0&&ex<COLS && (map[ey][ex]==TILE.DIRT||map[ey][ex]==TILE.EMPTY)) {
     map[ey][ex]=TILE.EGG;
-	col.eggs.push({x:ex, y:ey, timer:EGG_HATCH_TIME});
+	 col.eggs.push({x:ex, y:ey, type:type, timer:EGG_HATCH_TIME});
   }
 }
 
@@ -426,6 +540,40 @@ function getRandomNearbyEmptyTile(centerX, centerY, radius){
     }
   }
   return null;
+}
+
+function blendColor(c1, c2, amount) {
+    function hexToRgb(hex) {
+        hex = hex.replace("#", "");
+        return {
+            r: parseInt(hex.substring(0,2), 16),
+            g: parseInt(hex.substring(2,4), 16),
+            b: parseInt(hex.substring(4,6), 16)
+        };
+    }
+    function rgbToHex(r, g, b) {
+        return "#" + 
+            r.toString(16).padStart(2, '0') +
+            g.toString(16).padStart(2, '0') +
+            b.toString(16).padStart(2, '0');
+    }
+
+    let rgb1 = hexToRgb(c1);
+    let rgb2 = hexToRgb(c2);
+
+    // If the base color is too dark, brighten it slightly before blending
+    const brightness = rgb1.r + rgb1.g + rgb1.b;
+    if (brightness < 30) {
+        rgb1.r = 60;
+        rgb1.g = 40;
+        rgb1.b = 60;
+    }
+
+    let r = Math.round(rgb1.r * (1 - amount) + rgb2.r * amount);
+    let g = Math.round(rgb1.g * (1 - amount) + rgb2.g * amount);
+    let b = Math.round(rgb1.b * (1 - amount) + rgb2.b * amount);
+
+    return rgbToHex(r, g, b);
 }
 
 function loop(){update();draw();requestAnimationFrame(loop);}
