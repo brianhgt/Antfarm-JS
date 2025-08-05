@@ -4,29 +4,59 @@
 <meta charset="UTF-8">
 <title>Antfarm JS</title>
 <style>
-  body { margin:0; background:#333; color:#fff; font-family:sans-serif; }
-  #gameCanvas { display:block; margin: 20px auto; background: #3A2414; border:4px solid #222; box-shadow:0 0 10px #000; }
-  h3 { text-align:center; }
+  body {
+  margin: 0;
+  background: #333;
+  color: #fff;
+  font-family: sans-serif;
+  overflow: hidden; /* prevent scrollbars */
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+  display: block;
+}
+h3 { text-align:center; }
 </style>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
 <h3>🐜 Antfarm JS 🐜</h3>
-<canvas id="gameCanvas" width="1300" height="600"></canvas>
+<canvas id="bg" class="gameCanvas"></canvas>
+<canvas id="fg" class="gameCanvas"></canvas>
 <script>
 var jq = jQuery.noConflict();
 
 jq(function(){
-const canvas = jq("#gameCanvas")[0];
-const ctx = canvas.getContext("2d");
+//const canvas = jq("#gameCanvas")[0];
+//const ctx = canvas.getContext("2d");
 
-const TILE_SIZE=20, COLS=Math.floor(canvas.width/TILE_SIZE), ROWS=Math.floor(canvas.height/TILE_SIZE);
+const bgCanvas = document.getElementById("bg");
+bgCanvas.width = window.innerWidth;
+bgCanvas.height = window.innerHeight;
+const fgCanvas = document.getElementById("fg");
+fgCanvas.width = window.innerWidth;
+fgCanvas.height = window.innerHeight;
+
+const TILE_SIZE = 20, COLS=Math.floor(bgCanvas.width/TILE_SIZE), ROWS=Math.floor(bgCanvas.height/TILE_SIZE);
+const canvasWidth = COLS * TILE_SIZE;
+const canvasHeight = ROWS * TILE_SIZE;
+
+bgCanvas.width = fgCanvas.width = canvasWidth;
+bgCanvas.height = fgCanvas.height = canvasHeight;
+
+const bgCtx = bgCanvas.getContext("2d");
+const fgCtx = fgCanvas.getContext("2d");
+
 const TILE={ EMPTY:0, DIRT:1, FOOD:2, NEST:3, EGG:4 };
 const ANT_TYPE = { QUEEN:0, WORKER:1, SOLDIER:2, FEMALE:3, MALE:4 };
-const TILE_OPEN_SPACE=10;
+const TILE_OPEN_SPACE = 10;
 const SPIDER_CAN_GO_BELOW = false;
 const EGG_HATCH_TIME=1000;
-const FOOD_SPAWN_INTERVAL=1800; // frames ~30s at 60fps
+const FOOD_SPAWN_INTERVAL = 20 * 60; //frames ~Xs * 60fps
 let foodSpawnTimer=FOOD_SPAWN_INTERVAL;
 const FOOD_GROUP_SIZE=5;
 
@@ -35,8 +65,8 @@ jq(document).keydown(e=>keys[e.key]=true);
 jq(document).keyup(e=>keys[e.key]=false);
 
 
-const NUM_SPIDERS=1;
-const INIT_NUM_FOOD=30;
+const NUM_SPIDERS = 1;
+const INIT_NUM_FOOD = 30;
 const map=[];
 for(let y=0;y<ROWS;y++){
   let row=[]; for(let x=0;x<COLS;x++) row.push(y<TILE_OPEN_SPACE?TILE.EMPTY:TILE.DIRT);
@@ -44,16 +74,17 @@ for(let y=0;y<ROWS;y++){
 }
 
 // initial food on surface
-for(let i=0;i<20;i++){
+let foods = new Map();
+for(let i=0;i<INIT_NUM_FOOD;i++){
   let fx=Math.floor(Math.random()*COLS);
   let fy=Math.floor(Math.random()*TILE_OPEN_SPACE);
-  map[fy][fx]=TILE.FOOD;
+  foods.set(get2dHash(fx, fy), {x:fx,y:fy,carry:false});
 }
 
 let spiderScore=0;
 const colonies=[
-  {name:"A", color:"black", nest:{}, eggs:[], workers:[], soldiers:[], player:{}, score:0, playerTarget:null},
-  {name:"B", color:"red", nest:{}, eggs:[], workers:[], soldiers:[], player:{}, score:0, playerTarget:null}
+  {name:"A", color:"black", nest:{}, eggs:new Map(), workers:[], soldiers:[], player:{}, score:0, playerTarget:null},
+  {name:"B", color:"red", nest:{}, eggs:new Map(), workers:[], soldiers:[], player:{}, score:0, playerTarget:null}
 ];
 
 
@@ -77,14 +108,14 @@ colonies.forEach((col)=>{
   // spawn egg
   let ex = nx+1, ey = ny;
   if(map[ey][ex] == TILE.DIRT) {
-    map[ey][ex] = TILE.EGG;
-    col.eggs.push({x:ex, y:ey, type:ANT_TYPE.WORKER, timer:EGG_HATCH_TIME});
+    map[ey][ex] = TILE.EMPTY;
+    col.eggs.set(get2dHash(ex, ey), {x:ex, y:ey, type:ANT_TYPE.WORKER, timer:EGG_HATCH_TIME, carry:false});
   }
 });
 
 // click-to-move
-jq(canvas).click(e=>{
-  const rect=canvas.getBoundingClientRect();
+jq(fgCanvas).click(e=>{
+  const rect=fgCanvas.getBoundingClientRect();
   const mx=(e.clientX-rect.left)/TILE_SIZE;
   const my=(e.clientY-rect.top)/TILE_SIZE;
   colonies[0].playerTarget={x:mx, y:my};
@@ -100,7 +131,7 @@ function update(){
     for(let i=0;i<FOOD_GROUP_SIZE;i++){
       let fx=Math.floor(Math.random()*COLS);
       let fy=Math.floor(Math.random()*TILE_OPEN_SPACE);
-      map[fy][fx]=TILE.FOOD;
+      foods.set(get2dHash(fx, fy), {x:fx,y:fy});
     }
   }
 
@@ -160,6 +191,22 @@ function update(){
    colonies.forEach((col,idx)=>{
   
       //hatch eggs
+      col.eggs.forEach(egg=>{
+         if(egg) {
+            egg.timer--;
+            if(egg.timer <= 0) {
+               if(egg.type == ANT_TYPE.SOLDIER) {
+                  col.soldiers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.SOLDIER});
+               }
+               else {
+                  col.workers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
+               }
+               //map[col.eggs[i].y][col.eggs[i].x] = TILE.EMPTY;
+               col.eggs.delete(get2dHash(egg.x, egg.y));
+            }
+         }
+      });
+      /*
       for(let i = col.eggs.length-1; i >= 0; i--) {
          col.eggs[i].timer--;
          if(col.eggs[i].timer<=0){
@@ -169,10 +216,12 @@ function update(){
             else {
                col.workers.push({x:col.eggs[i].x+0.5, y:col.eggs[i].y+0.5, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
             }
-            map[col.eggs[i].y][col.eggs[i].x] = TILE.EMPTY;
+            //map[col.eggs[i].y][col.eggs[i].x] = TILE.EMPTY;
             col.eggs.splice(i,1);
          }
       }
+      */
+      
       //hatch spiders
       for(let i = spiders.length-1; i >= 0; i--) {
          if(spiders[i].timer == -1) {
@@ -200,17 +249,32 @@ function update(){
        }
 
       let tx=Math.floor(player.x), ty=Math.floor(player.y);
-      if(map[ty][tx]==TILE.DIRT) map[ty][tx]=TILE.EMPTY;
-      if(!player.carrying && (map[ty][tx]==TILE.FOOD||map[ty][tx]==TILE.EGG)){
-         player.carrying=map[ty][tx]; map[ty][tx]=TILE.EMPTY;
+      //dig
+      if(map[ty][tx]==TILE.DIRT) {
+         map[ty][tx]=TILE.EMPTY;
+         drawBackground(bgCtx);
       }
+      //pickup Egg
+      if(!player.carrying && (col.eggs[get2dHash(tx, ty)])){
+         player.carrying=TILE.EGG;
+         col.eggs[get2dHash(tx, ty)].carry = true;
+         //map[ty][tx]=TILE.EMPTY;
+      }
+      //pickup food
+      else if (!player.carrying && (foods.get(get2dHash(tx, ty)))){
+         player.carrying = TILE.FOOD;
+         foods.delete(get2dHash(tx, ty));
+      }
+         
+      //spawn worker
       if(tx==col.nest.x&&ty==col.nest.y && player.carrying){
          if(player.carrying==TILE.FOOD){ player.score++; spawnEggNearNest(col, ANT_TYPE.WORKER); }
-         if(player.carrying==TILE.EGG){ 
+         if(player.carrying==TILE.EGG){
             col.workers.push({x:col.nest.x, y:col.nest.y, carrying:null, target:null, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
          }
          player.carrying=null;
       }
+      //spawn soldier
       if(tx==col.nest.sX&&ty==col.nest.sY && player.carrying) {
          if(player.carrying==TILE.FOOD){ player.score++; spawnEggNearNest(col, ANT_TYPE.SOLDIER); }
          if(player.carrying==TILE.EGG) {
@@ -222,13 +286,14 @@ function update(){
       // workers: find food
       col.workers.forEach(ant=>{
          if(!ant.path){
-           let food=null;
-           for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(map[y][x]==TILE.FOOD) food={x,y};
-           if(food){
-           let target=food[Math.floor(Math.random()*food.length)];
-             ant.target=target;
-             ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),food.x,food.y);
-             ant.pathIndex=0;
+           //let food=null;
+           //for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(map[y][x]==TILE.FOOD) food={x,y};
+           //food = foods[Math.floor(Math.random() * foods.size)];
+           if(foods.size > 0){
+              let target = getRandMap(foods);
+              ant.target=target;
+              ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),target.x,target.y);
+              ant.pathIndex=0;
            }else{
             let wander=getRandomNearbyEmptyTile(Math.floor(ant.x),Math.floor(ant.y),5);
             if(wander){
@@ -246,16 +311,24 @@ function update(){
          } else { ant.path=null; }
 
          let antX = Math.floor(ant.x), antY=Math.floor(ant.y);
-         if(map[antY][antX]==TILE.DIRT) map[antY][antX]=TILE.EMPTY;
-         if(!ant.carrying && map[antY][antX]==TILE.FOOD){
-            ant.carrying=TILE.FOOD; map[antY][antX]=TILE.EMPTY;
+         //dig
+         if(map[antY][antX]==TILE.DIRT){
+            map[antY][antX]=TILE.EMPTY;
+            drawBackground(bgCtx);
+         }
+         if(!ant.carrying && foods.has(get2dHash(antX, antY))){
+            ant.carrying=TILE.FOOD;
+            foods.delete(get2dHash(antX, antY));
+            
             ant.target={x:col.nest.x,y:col.nest.y};
             ant.path=findPath(antX,antY,col.nest.x,col.nest.y); ant.pathIndex=0;
          }
-         if(ant.carrying && antX == col.nest.x && antY == col.nest.y){
+         
+         if(ant.carrying == TILE.FOOD && antX == col.nest.x && antY == col.nest.y) {
             col.score++; ant.carrying=null; ant.target=null; ant.path=null;
-            spawnEggNearNest(col);
+            spawnEggNearNest(col, ANT_TYPE.WORKER);
          }
+         
       });
       
       // soldiers: find spiders
@@ -290,7 +363,11 @@ function update(){
          } else { ant.path=null; }
 
          let antX = Math.floor(ant.x), antY=Math.floor(ant.y);
-         if(map[antY][antX]==TILE.DIRT) map[antY][antX]=TILE.EMPTY;
+         //dig
+         if(map[antY][antX]==TILE.DIRT) {
+            map[antY][antX]=TILE.EMPTY;
+            drawBackground(bgCtx);
+         }
          /*if(!ant.carrying && map[antY][antX]==TILE.FOOD){
             ant.carrying=TILE.FOOD; map[antY][antX]=TILE.EMPTY;
             ant.target={x:col.nest.x,y:col.nest.y};
@@ -396,20 +473,34 @@ function update(){
   });
 }
 
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
-     let t=map[y][x];
-     if(t==TILE.DIRT)ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-     else if(t==TILE.FOOD)ctx.fillStyle="green",ctx.fillRect(x*TILE_SIZE+5,y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
+function drawBackground(ctx) {
+   ctx.clearRect(0,0,canvasWidth,canvasHeight);
+   
+   ctx.fillStyle="#5B3A1E";
+   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+     let t = map[y][x];
+     if(t==TILE.DIRT) {
+         ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+     }
+     //food
+     //else if(t==TILE.FOOD)ctx.fillStyle="green",ctx.fillRect(x*TILE_SIZE+5,y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
      /*else if(t==TILE.NEST) {
        if(x == )
        ctx.fillStyle = "gray",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
        ctx.fillStyle = "purple",ctx.fillRect(x*TILE_SIZE,(y*TILE_SIZE)+TILE_SIZE,TILE_SIZE,TILE_SIZE);
      }*/
     
-     else if(t==TILE.EGG){ctx.fillStyle="white";ctx.beginPath();ctx.arc(x*TILE_SIZE+TILE_SIZE/2,y*TILE_SIZE+TILE_SIZE/2,TILE_SIZE/3,0,Math.PI*2);ctx.fill();}
-  }
+     //else if(t==TILE.EGG){ctx.fillStyle="white";ctx.beginPath();ctx.arc(x*TILE_SIZE+TILE_SIZE/2,y*TILE_SIZE+TILE_SIZE/2,TILE_SIZE/3,0,Math.PI*2);ctx.fill();}
+   }
+}
+
+function drawForeground(ctx) {
+  ctx.clearRect(0,0,canvasWidth,canvasHeight);
+  
+  ctx.fillStyle="green";
+  foods.forEach(food=>{
+      if (food) ctx.fillRect(food.x*TILE_SIZE+5,food.y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
+  });
   colonies.forEach(col=>{
     
     ctx.fillStyle = "gray",ctx.fillRect(col.nest.x*TILE_SIZE,col.nest.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
@@ -437,6 +528,17 @@ function draw(){
       ctx.fillStyle=col.player.carrying==TILE.FOOD?"green":"white";
       ctx.fillRect(col.player.x*TILE_SIZE+4,col.player.y*TILE_SIZE+4,6,6);
     }
+    ctx.fillStyle = "white";
+    col.eggs.forEach(egg=>{
+      if (egg) {
+         if(egg.carry) {
+            ctx.fillRect(egg.x*TILE_SIZE+4,egg.y*TILE_SIZE+4,6,6);
+         }
+         else {
+            ctx.fillRect(egg.x*TILE_SIZE+5,egg.y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
+         }
+      }
+    });
   });
   spiders.forEach(s=>{
       if(s.timer != -1) {
@@ -524,8 +626,8 @@ function spawnEggNearNest(col, type){
   let ex=col.nest.x+Math.floor(Math.cos(angle)*2);
   let ey=col.nest.y+Math.floor(Math.sin(angle)*2);
   if(ey>=0&&ey<ROWS&&ex>=0&&ex<COLS && (map[ey][ex]==TILE.DIRT||map[ey][ex]==TILE.EMPTY)) {
-    map[ey][ex]=TILE.EGG;
-	 col.eggs.push({x:ex, y:ey, type:type, timer:EGG_HATCH_TIME});
+    map[ey][ex] = TILE.EMPTY;
+	 col.eggs.set(get2dHash(ex,ey), {x:ex, y:ey, type:type, timer:EGG_HATCH_TIME, carry:false});
   }
 }
 
@@ -540,6 +642,25 @@ function getRandomNearbyEmptyTile(centerX, centerY, radius){
     }
   }
   return null;
+}
+
+function get2dHash(x, y) {
+   return `${x},${y}`;
+}
+
+function getRandMap(map) {
+  const values = Array.from(map.values());
+  if (values.length === 0) return undefined;
+  const index = Math.floor(Math.random() * values.length);
+  return values[index];
+}
+
+function findFoodAt(fx, fy) {
+   foods.forEach(food=>{
+      if(Math.abs(food.x - fx) < 0.7 && Math.abs(food.y - fy) < 0.7) {
+         return food;
+      }
+   });
 }
 
 function blendColor(c1, c2, amount) {
@@ -576,8 +697,15 @@ function blendColor(c1, c2, amount) {
     return rgbToHex(r, g, b);
 }
 
-function loop(){update();draw();requestAnimationFrame(loop);}
-loop();
+function gameLoop() {
+  update();         // move ants, spawn eggs, AI
+  drawForeground(fgCtx); // only redraw moving things
+  requestAnimationFrame(gameLoop);
+}
+
+drawBackground(bgCtx);
+gameLoop();
+
 });
 </script>
 
