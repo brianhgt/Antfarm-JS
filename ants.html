@@ -27,12 +27,14 @@ h3 { text-align:center; }
 <h3>🐜 Antfarm JS 🐜</h3>
 <canvas id="bg" class="gameCanvas"></canvas>
 <canvas id="fg" class="gameCanvas"></canvas>
+<canvas id="dbg" class="gameCanvas"></canvas>
 <script>
 var jq = jQuery.noConflict();
 
 jq(function(){
 //const canvas = jq("#gameCanvas")[0];
 //const ctx = canvas.getContext("2d");
+const showDebug = true;
 
 const bgCanvas = document.getElementById("bg");
 bgCanvas.width = window.innerWidth;
@@ -40,6 +42,9 @@ bgCanvas.height = window.innerHeight;
 const fgCanvas = document.getElementById("fg");
 fgCanvas.width = window.innerWidth;
 fgCanvas.height = window.innerHeight;
+const dbgCanvas = document.getElementById("dbg");
+dbgCanvas.width = window.innerWidth;
+dbgCanvas.height = window.innerHeight;
 
 const TILE_SIZE = 20, COLS=Math.floor(bgCanvas.width/TILE_SIZE), ROWS=Math.floor(bgCanvas.height/TILE_SIZE);
 const canvasWidth = COLS * TILE_SIZE;
@@ -47,15 +52,19 @@ const canvasHeight = ROWS * TILE_SIZE;
 
 bgCanvas.width = fgCanvas.width = canvasWidth;
 bgCanvas.height = fgCanvas.height = canvasHeight;
+dbgCanvas.height = fgCanvas.height = canvasHeight;
 
 const bgCtx = bgCanvas.getContext("2d");
 const fgCtx = fgCanvas.getContext("2d");
+const dbgCtx = dbgCanvas.getContext("2d");
 
 const TILE={ EMPTY:0, DIRT:1, FOOD:2, NEST:3, EGG:4 };
 const ANT_TYPE = { QUEEN:0, WORKER:1, SOLDIER:2, FEMALE:3, MALE:4 };
 const TILE_OPEN_SPACE = 10;
 const SPIDER_CAN_GO_BELOW = false;
-const EGG_HATCH_TIME=1000;
+const WANDER_DIST = 6;
+const EGG_HATCH_TIME = 1000;
+const SPIDER_COOLDOWN = 5 * 60; //frames ~Xs * 60fps
 const FOOD_SPAWN_INTERVAL = 20 * 60; //frames ~Xs * 60fps
 let foodSpawnTimer=FOOD_SPAWN_INTERVAL;
 const FOOD_GROUP_SIZE=5;
@@ -88,7 +97,8 @@ const colonies=[
 ];
 
 
-const spiders=[{x:4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME},{x:COLS-4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME}];
+const spiders=[{x:4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME, cooldownTimer:SPIDER_COOLDOWN},
+   {x:COLS-4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME, cooldownTimer:SPIDER_COOLDOWN}];
 const skulls=[];
 
 colonies.forEach((col)=>{
@@ -224,14 +234,11 @@ function update(){
       
       //hatch spiders
       for(let i = spiders.length-1; i >= 0; i--) {
-         if(spiders[i].timer == -1) {
-            break;
-         }
-         else if(spiders[i].timer <= 0){
-            spiders[i].timer = -1;
-         }
-         else {
+         if(spiders[i].timer >= 0) {
             spiders[i].timer--;
+         }
+         if(spiders[i].cooldownTimer >= 0) {
+            spiders[i].cooldownTimer--;
          }
       }
         
@@ -294,8 +301,11 @@ function update(){
               ant.target=target;
               ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),target.x,target.y);
               ant.pathIndex=0;
+              if (!ant.path && map[target.y][target.x] == TILE.DIRT) {
+                 foods.delete(get2dHash(target.x,target.y));
+              }
            }else{
-            let wander=getRandomNearbyEmptyTile(Math.floor(ant.x),Math.floor(ant.y),5);
+            let wander=getRandomNearbyEmptyTile(Math.floor(ant.x),Math.floor(ant.y), WANDER_DIST);
             if(wander){
               ant.target=wander;
               ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),wander.x,wander.y); ant.pathIndex=0;
@@ -395,7 +405,7 @@ function update(){
 
   // spiders chase nearest ant
   spiders.forEach(s=>{
-    if (s.timer != -1) {
+    if (s.timer > 0) {
       return;
     }
     let nearest = getNearestAnt(s);
@@ -438,20 +448,23 @@ function update(){
 		s.path=null;
 		s.target=null;
 	}
-
-   colonies.forEach(col=>{
-		for(let j=col.workers.length-1; j>=0; j--){
-			let w=col.workers[j];
-			
-			
-			if(Math.abs(w.x - s.x) < 0.7 && Math.abs(w.y - s.y) < 0.7){
-				map[Math.floor(w.y)][Math.floor(w.x)]=TILE.DIRT;
-				skulls.push({x:w.x,y:w.y,timer:300});
-				col.workers.splice(j,1);
-				spiderScore++;
-			}
-		}
-	});
+   
+   if (s.cooldownTimer <= 0) {
+      colonies.forEach(col=>{
+         for(let j=col.workers.length-1; j>=0; j--){
+            let w=col.workers[j];
+            
+            //spider eats ant
+            if(Math.abs(w.x - s.x) < 0.7 && Math.abs(w.y - s.y) < 0.7){
+               map[Math.floor(w.y)][Math.floor(w.x)]=TILE.DIRT;
+               skulls.push({x:w.x,y:w.y,timer:300});
+               col.workers.splice(j,1);
+               spiderScore++;
+               s.cooldownTimer = SPIDER_COOLDOWN;
+            }
+         }
+      });
+    }
 /*
     if(player && Math.abs(player.x - s.x)<0.5 && Math.abs(player.y - s.y)<0.5){
 	  //player death
@@ -467,10 +480,10 @@ function update(){
       }
     }
 */
-
+  });
+  
   for(let sk of skulls) sk.timer--;
   while(skulls.length&&skulls[0].timer<=0) skulls.shift();
-  });
 }
 
 function drawBackground(ctx) {
@@ -506,25 +519,30 @@ function drawForeground(ctx) {
     ctx.fillStyle = "gray",ctx.fillRect(col.nest.x*TILE_SIZE,col.nest.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
     ctx.fillStyle = "purple",ctx.fillRect(col.nest.sX*TILE_SIZE,col.nest.sY*TILE_SIZE,TILE_SIZE,TILE_SIZE);
     
-    ctx.fillStyle=col.color; ctx.beginPath();
+    ctx.fillStyle=col.color;
+    
+    //draw player
+    ctx.beginPath();
     ctx.arc(col.player.x*TILE_SIZE,col.player.y*TILE_SIZE,TILE_SIZE/2-2,0,Math.PI*2);ctx.fill();
+    
+    //draw workers
     col.workers.forEach(w=>{
-      ctx.fillStyle=col.color;
 	   ctx.beginPath();
       ctx.arc(w.x*TILE_SIZE,w.y*TILE_SIZE,TILE_SIZE/2-3,0,Math.PI*2);ctx.fill();
 	   if(w.carrying){
 		   ctx.fillStyle=w.carrying==TILE.FOOD?"green":"white";
 		   ctx.fillRect(w.x*TILE_SIZE+4,w.y*TILE_SIZE+4,6,6);
+         ctx.fillStyle=col.color;
 	   }
     });
     col.soldiers.forEach(ant=>{
       //ctx.fillStyle= blendColor(col.color, "#800080", 0.3); // 30% purple tint
       //ctx.fillStyle = "purple";
-      ctx.fillStyle = col.color;
+      //ctx.fillStyle = col.color;
 	   ctx.beginPath();
       ctx.arc(ant.x*TILE_SIZE, ant.y*TILE_SIZE, TILE_SIZE * 0.45, 0, Math.PI*4);ctx.fill();
     });
-	if(col.player.carrying){
+	 if(col.player.carrying){
       ctx.fillStyle=col.player.carrying==TILE.FOOD?"green":"white";
       ctx.fillRect(col.player.x*TILE_SIZE+4,col.player.y*TILE_SIZE+4,6,6);
     }
@@ -542,61 +560,96 @@ function drawForeground(ctx) {
   });
   spiders.forEach(s=>{
       if(s.timer != -1) {
-         ctx.fillStyle="white";ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+         ctx.fillStyle="white";
+         ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
       }
       else {
-         ctx.fillStyle="darkblue";ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+         ctx.fillStyle="darkblue";
+         ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
       }
   });
   for(let sk of skulls){ ctx.fillText("💀",sk.x*TILE_SIZE,sk.y*TILE_SIZE);}
 }
 
-
-
-
+function drawDebug(ctx) {
+   ctx.clearRect(0,0,canvasWidth,canvasHeight);
+  
+   //ctx.fillStyle="yellow";
+   colonies.forEach(col=>{
+      col.workers.forEach(w=>{
+         if (w.path) {
+            //ctx.fillStyle = fadeCssColor("yellow", Math.min(1.0 - (w.pathIndex / w.path.length), 0.3));
+            ctx.fillStyle = hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
+            w.path.forEach(next=>{
+               ctx.fillRect(next.x*TILE_SIZE,next.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+            });
+         }
+      });
+   });
+}
+   
+ 
 ///////////////////////
 /* Library Functions */
 ///////////////////////
-
+let dirs = [
+  {x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1},
+  {x:1,y:1},{x:1,y:-1},{x:-1,y:1},{x:-1,y:-1}
+];
 
 // � A* pathfinding
 function findPath(startX, startY, goalX, goalY){
-  const open=[], closed={}, cameFrom={};
-  const gScore={}, fScore={};
-  function key(x,y){ return x+','+y; }
+  const open = new MinHeap();
+  const openSet = new Set();
+  const closed = new Set();
+  const cameFrom = {};
+  const gScore = {};
+  const fScore = {};
 
-  let startK=key(startX,startY);
-  gScore[startK]=0;
-  fScore[startK]=Math.abs(goalX-startX)+Math.abs(goalY-startY);
-  open.push({x:startX,y:startY,f:fScore[startK]});
+  function key(x,y){ return y * COLS + x; }
 
-  while(open.length>0){
-    open.sort((a,b)=>a.f-b.f);
-    let current=open.shift();
-    let currK=key(current.x,current.y);
-    if(current.x==goalX && current.y==goalY){
-      let path=[{x:goalX,y:goalY}];
-      while(cameFrom[key(path[0].x,path[0].y)]){
-        path.unshift(cameFrom[key(path[0].x,path[0].y)]);
+  let startK = key(startX, startY);
+  gScore[startK] = 0;
+  fScore[startK] = Math.abs(goalX - startX) + Math.abs(goalY - startY);
+  open.push({x: startX, y: startY, f: fScore[startK]});
+  openSet.add(startK);
+
+  while (!open.isEmpty()) {
+    let current = open.pop();
+    let currK = key(current.x, current.y);
+    openSet.delete(currK);
+
+    if (current.x === goalX && current.y === goalY) {
+      let path = [{x: goalX, y: goalY}];
+      while (cameFrom[key(path[0].x, path[0].y)]) {
+        path.unshift(cameFrom[key(path[0].x, path[0].y)]);
       }
       return path;
     }
-    closed[currK]=true;
-    let dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
-    for(let d of dirs){
-      let nx=current.x+d.x, ny=current.y+d.y, nk=key(nx,ny);
-      if(nx<0||nx>=COLS||ny<0||ny>=ROWS) continue;
-      if(map[ny][nx]==TILE.DIRT) continue;
-      if(closed[nk]) continue;
-      let tentativeG=gScore[currK]+1;
-      if(gScore[nk]==undefined||tentativeG<gScore[nk]){
-        cameFrom[nk]={x:current.x,y:current.y};
-        gScore[nk]=tentativeG;
-        fScore[nk]=tentativeG+Math.abs(goalX-nx)+Math.abs(goalY-ny);
-        if(!open.find(n=>n.x==nx&&n.y==ny)) open.push({x:nx,y:ny,f:fScore[nk]});
+
+    closed.add(currK);
+    for (let d of dirs) {
+      let nx = current.x + d.x;
+      let ny = current.y + d.y;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (map[ny][nx] == TILE.DIRT) continue;
+
+      let nk = key(nx, ny);
+      if (closed.has(nk)) continue;
+
+      let tentativeG = gScore[currK] + 1;
+      if (gScore[nk] === undefined || tentativeG < gScore[nk]) {
+        cameFrom[nk] = {x: current.x, y: current.y};
+        gScore[nk] = tentativeG;
+        fScore[nk] = tentativeG + Math.abs(goalX - nx) + Math.abs(goalY - ny);
+        if (!openSet.has(nk)) {
+          open.push({x: nx, y: ny, f: fScore[nk]});
+          openSet.add(nk);
+        }
       }
     }
   }
+
   return null;
 }
 
@@ -697,9 +750,72 @@ function blendColor(c1, c2, amount) {
     return rgbToHex(r, g, b);
 }
 
+function toTransparentColor(color, alpha) {
+  // Create a temporary canvas to convert any CSS color to RGB
+  let tempCtx = document.createElement('canvas').getContext('2d');
+  tempCtx.fillStyle = color;
+  let computed = tempCtx.fillStyle;
+
+  // computed is now in rgb(...) form
+  let match = computed.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!match) return color; // fallback to original color
+
+  let [_, r, g, b] = match;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function hexToRgba(hex, alpha = 1.0) {
+  hex = hex.replace(/^#/, '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(c => c + c).join('');
+  }
+  const r = parseInt(hex.substring(0,2), 16);
+  const g = parseInt(hex.substring(2,4), 16);
+  const b = parseInt(hex.substring(4,6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+class MinHeap {
+  constructor() { this.items = []; }
+  push(node) {
+    this.items.push(node);
+    this.bubbleUp();
+  }
+  pop() {
+    if (this.items.length < 2) return this.items.pop();
+    const top = this.items[0];
+    this.items[0] = this.items.pop();
+    this.bubbleDown();
+    return top;
+  }
+  bubbleUp() {
+    let i = this.items.length - 1;
+    while (i > 0) {
+      let p = Math.floor((i - 1) / 2);
+      if (this.items[i].f >= this.items[p].f) break;
+      [this.items[i], this.items[p]] = [this.items[p], this.items[i]];
+      i = p;
+    }
+  }
+  bubbleDown() {
+    let i = 0;
+    const l = this.items.length;
+    while (true) {
+      let left = 2 * i + 1, right = 2 * i + 2, smallest = i;
+      if (left < l && this.items[left].f < this.items[smallest].f) smallest = left;
+      if (right < l && this.items[right].f < this.items[smallest].f) smallest = right;
+      if (smallest === i) break;
+      [this.items[i], this.items[smallest]] = [this.items[smallest], this.items[i]];
+      i = smallest;
+    }
+  }
+  isEmpty() { return this.items.length === 0; }
+}
+
 function gameLoop() {
   update();         // move ants, spawn eggs, AI
   drawForeground(fgCtx); // only redraw moving things
+  if(showDebug) drawDebug(dbgCtx);
   requestAnimationFrame(gameLoop);
 }
 
