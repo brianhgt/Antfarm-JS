@@ -20,11 +20,155 @@ canvas {
   display: block;
 }
 h3 { text-align:center; }
+
+#optionsPanel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: #222;
+  border: 2px solid #555;
+  border-radius: 5px;
+  padding: 0;
+  z-index: 1000;
+  box-shadow: 0 0 10px rgba(0,0,0,0.8);
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+}
+
+#optionsPanel.expanded {
+  width: 300px;
+  transition: width 0.3s ease;
+}
+
+#panelHeader {
+  background: #444;
+  padding: 0px 0px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #555;
+  white-space: nowrap;
+}
+
+#panelHeader:hover {
+  background: #555;
+}
+
+#panelToggle {
+  font-weight: bold;
+  color: #88ff88;
+  font-size: 14px;
+}
+
+#panelContent {
+  padding: 0px 0px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  background: #2a2a2a;
+}
+
+#optionsPanel.expanded #panelContent {
+  display: flex;
+}
+
+#optionsPanel.expanded #panelContent {
+  display: flex;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.option-group label {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: bold;
+}
+
+.option-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 5px;
+  cursor: pointer;
+}
+
+.option-group input[type="range"],
+.option-group input[type="number"] {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 5px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.option-group input[type="range"] {
+  cursor: pointer;
+}
+
+.option-value {
+  font-size: 11px;
+  color: #88ff88;
+  margin-top: 2px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: #ccc;
+}
+
 </style>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
 <h3>🐜 Antfarm JS 🐜</h3>
+
+<!-- Options Panel -->
+<div id="optionsPanel">
+  <div id="panelHeader">
+    <span>⚙️</span>
+  </div>
+  <div id="panelContent">
+    <div class="option-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="showPathsCheck">
+        Show Paths
+      </label>
+    </div>
+
+    <div class="option-group">
+      <label>Max Entities: <span id="maxEntitiesValue">2000</span></label>
+      <input type="range" id="maxEntitiesSlider" min="5" max="2000" value="2000" step="10">
+    </div>
+
+    <div class="option-group">
+      <label>Num Spiders: <span id="numSpidersValue">1</span></label>
+      <input type="range" id="numSpidersSlider" min="0" max="10" value="1" step="1">
+    </div>
+
+    <div class="option-group">
+      <label>Food Per Spawn: <span id="foodAmountValue">5</span></label>
+      <input type="range" id="foodAmountSlider" min="1" max="50" value="5" step="1">
+    </div>
+
+    <div class="option-group">
+      <label>Food Frequency: <span id="foodFrequencyValue">20</span></label>
+      <input type="range" id="foodFrequencySlider" min="1" max="60" value="20" step="1">
+      <div class="option-value">seconds: <span id="foodFrequencySecs">0.3</span></div>
+    </div>
+  </div>
+</div>
+
 <canvas id="bg" class="gameCanvas"></canvas>
 <canvas id="fg" class="gameCanvas"></canvas>
 <canvas id="dbg" class="gameCanvas"></canvas>
@@ -32,6 +176,28 @@ h3 { text-align:center; }
 var jq = jQuery.noConflict();
 
 jq(function(){
+
+// ========== OPTIONS PANEL SETUP ==========
+let panelExpanded = false;
+const optionsPanel = jq('#optionsPanel');
+const panelHeader = jq('#panelHeader');
+const panelToggle = jq('#panelToggle');
+const panelContent = jq('#panelContent');
+
+// Panel expand/collapse
+panelHeader.click(function() {
+  panelExpanded = !panelExpanded;
+  if(panelExpanded) {
+    optionsPanel.addClass('expanded');
+    panelToggle.text('◀');
+  } else {
+    optionsPanel.removeClass('expanded');
+    panelToggle.text('▶');
+  }
+});
+
+// ==========================================
+
 //const canvas = jq("#gameCanvas")[0];
 //const ctx = canvas.getContext("2d");
 const showDebug = true;
@@ -69,13 +235,52 @@ const FOOD_SPAWN_INTERVAL = 20 * 60; //frames ~Xs * 60fps
 let foodSpawnTimer=FOOD_SPAWN_INTERVAL;
 const FOOD_GROUP_SIZE=5;
 
+// Mutable configuration variables
+let showDebugPaths = false;
+let maxEntities = 2000;
+let numSpiders = 1;
+let foodSpawnAmount = 5;
+let foodSpawnInterval = FOOD_SPAWN_INTERVAL;
+
+// Connect option panel controls
+jq('#showPathsCheck').on('change', function() {
+  showDebugPaths = jq(this).is(':checked');
+});
+
+jq('#maxEntitiesSlider').on('input', function() {
+  maxEntities = parseInt(jq(this).val());
+  jq('#maxEntitiesValue').text(maxEntities);
+});
+
+jq('#numSpidersSlider').on('input', function() {
+  numSpiders = parseInt(jq(this).val());
+  jq('#numSpidersValue').text(numSpiders);
+  // Adjust spider array
+  while(spiders.length < numSpiders) {
+    spiders.push({x:Math.random()*COLS,y:Math.random()*TILE_OPEN_SPACE,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME, cooldownTimer:SPIDER_COOLDOWN});
+  }
+  while(spiders.length > numSpiders) {
+    spiders.pop();
+  }
+});
+
+jq('#foodAmountSlider').on('input', function() {
+  foodSpawnAmount = parseInt(jq(this).val());
+  jq('#foodAmountValue').text(foodSpawnAmount);
+});
+
+jq('#foodFrequencySlider').on('input', function() {
+  let value = parseInt(jq(this).val());
+  jq('#foodFrequencyValue').text(value);
+  foodSpawnInterval = value * 60; // convert seconds to frames (@ 60fps)
+  jq('#foodFrequencySecs').text((value / 60).toFixed(1));
+});
+
 const keys={}; // track keys
 jq(document).keydown(e=>keys[e.key]=true);
 jq(document).keyup(e=>keys[e.key]=false);
 
 
-const NUM_SPIDERS = 1;
-const INIT_NUM_FOOD = 30;
 const map=[];
 for(let y=0;y<ROWS;y++){
   let row=[]; for(let x=0;x<COLS;x++) row.push(y<TILE_OPEN_SPACE?TILE.EMPTY:TILE.DIRT);
@@ -84,7 +289,7 @@ for(let y=0;y<ROWS;y++){
 
 // initial food on surface
 let foods = new Map();
-for(let i=0;i<INIT_NUM_FOOD;i++){
+for(let i=0;i<foodSpawnAmount;i++){
   let fx=Math.floor(Math.random()*COLS);
   let fy=Math.floor(Math.random()*TILE_OPEN_SPACE);
   foods.set(get2dHash(fx, fy), {x:fx,y:fy,carry:false});
@@ -96,9 +301,19 @@ const colonies=[
   {name:"B", color:"red", nest:{}, eggs:new Map(), workers:[], soldiers:[], player:{}, score:0, playerTarget:null}
 ];
 
-
-const spiders=[{x:4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME, cooldownTimer:SPIDER_COOLDOWN},
-   {x:COLS-4,y:2,target:null,path:null,pathIndex:0, timer:EGG_HATCH_TIME, cooldownTimer:SPIDER_COOLDOWN}];
+// Initialize spiders dynamically
+let spiders = [];
+for(let i = 0; i < numSpiders; i++) {
+  spiders.push({
+    x: Math.random() * COLS,
+    y: Math.random() * TILE_OPEN_SPACE,
+    target: null,
+    path: null,
+    pathIndex: 0,
+    timer: EGG_HATCH_TIME,
+    cooldownTimer: SPIDER_COOLDOWN
+  });
+}
 const skulls=[];
 
 colonies.forEach((col)=>{
@@ -124,11 +339,18 @@ colonies.forEach((col)=>{
 });
 
 // click-to-move
-jq(fgCanvas).click(e=>{
+document.addEventListener('click', e=>{
+  // Don't process clicks on the options panel
+  if(document.getElementById('optionsPanel').contains(e.target)) {
+    return;
+  }
+  
   const rect=fgCanvas.getBoundingClientRect();
   const mx=(e.clientX-rect.left)/TILE_SIZE;
   const my=(e.clientY-rect.top)/TILE_SIZE;
-  colonies[0].playerTarget={x:mx, y:my};
+  if(mx >= 0 && mx < COLS && my >= 0 && my < ROWS) {
+    colonies[0].playerTarget={x:mx, y:my};
+  }
 });
 
 
@@ -137,8 +359,8 @@ jq(fgCanvas).click(e=>{
 function update(){
   foodSpawnTimer--;
   if(foodSpawnTimer<=0){
-    foodSpawnTimer=FOOD_SPAWN_INTERVAL;
-    for(let i=0;i<FOOD_GROUP_SIZE;i++){
+    foodSpawnTimer=foodSpawnInterval;
+    for(let i=0;i<foodSpawnAmount;i++){
       let fx=Math.floor(Math.random()*COLS);
       let fy=Math.floor(Math.random()*TILE_OPEN_SPACE);
       foods.set(get2dHash(fx, fy), {x:fx,y:fy});
@@ -205,11 +427,15 @@ function update(){
          if(egg) {
             egg.timer--;
             if(egg.timer <= 0) {
-               if(egg.type == ANT_TYPE.SOLDIER) {
-                  col.soldiers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.SOLDIER});
-               }
-               else {
-                  col.workers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
+               // Check entity limit before hatching
+               let totalEntities = countTotalEntities();
+               if(totalEntities < maxEntities) {
+                  if(egg.type == ANT_TYPE.SOLDIER) {
+                     col.soldiers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.SOLDIER});
+                  }
+                  else {
+                     col.workers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
+                  }
                }
                //map[col.eggs[i].y][col.eggs[i].x] = TILE.EMPTY;
                col.eggs.delete(get2dHash(egg.x, egg.y));
@@ -679,9 +905,22 @@ function spawnEggNearNest(col, type){
   let ex=col.nest.x+Math.floor(Math.cos(angle)*2);
   let ey=col.nest.y+Math.floor(Math.sin(angle)*2);
   if(ey>=0&&ey<ROWS&&ex>=0&&ex<COLS && (map[ey][ex]==TILE.DIRT||map[ey][ex]==TILE.EMPTY)) {
+    // Check if we're at max entities limit
+    let totalEntities = countTotalEntities();
+    if(totalEntities >= maxEntities) return;
+    
     map[ey][ex] = TILE.EMPTY;
 	 col.eggs.set(get2dHash(ex,ey), {x:ex, y:ey, type:type, timer:EGG_HATCH_TIME, carry:false});
   }
+}
+
+// Count total entities (workers + soldiers)
+function countTotalEntities() {
+  let total = 0;
+  colonies.forEach(col => {
+    total += col.workers.length + col.soldiers.length;
+  });
+  return total;
 }
 
 // ✅ helper: get random empty tile near (x,y) within radius, underground
@@ -815,7 +1054,7 @@ class MinHeap {
 function gameLoop() {
   update();         // move ants, spawn eggs, AI
   drawForeground(fgCtx); // only redraw moving things
-  if(showDebug) drawDebug(dbgCtx);
+  if(showDebugPaths) drawDebug(dbgCtx);
   requestAnimationFrame(gameLoop);
 }
 
