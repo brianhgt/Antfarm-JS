@@ -398,7 +398,8 @@ function update(){
     foodSpawnTimer=foodSpawnInterval;
     for(let i=0;i<foodSpawnAmount;i++){
       let fx = Math.floor(Math.random() * WORLD_X_MAX);
-      let fy = Math.floor(Math.random() * WORLD_Y_MAX);
+      //let fy = Math.floor(Math.random() * WORLD_Y_MAX);
+      let fy = 0; //TODO spawn along y=0 line to make it more likely ants will find the food, for now
       let fz = 0; // spawn on surface
       foods.set(get3dHash(fx, fy, fz), {x:fx,y:fy,z:fz,carry:false});
     }
