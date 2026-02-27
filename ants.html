@@ -4,130 +4,8 @@
 <meta charset="UTF-8">
 <title>Antfarm JS</title>
 <style>
-  body {
-  margin: 0;
-  background: #333;
-  color: #fff;
-  font-family: sans-serif;
-  overflow: hidden; /* prevent scrollbars */
-}
-
-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  image-rendering: pixelated;
-  display: block;
-}
-h3 { text-align:center; }
-
-#optionsPanel {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  background: #222;
-  border: 2px solid #555;
-  border-radius: 5px;
-  padding: 0;
-  z-index: 1000;
-  box-shadow: 0 0 10px rgba(0,0,0,0.8);
-  font-family: monospace;
-  display: flex;
-  flex-direction: column;
-  width: auto;
-}
-
-#optionsPanel.expanded {
-  width: 300px;
-  transition: width 0.3s ease;
-}
-
-#panelHeader {
-  background: #444;
-  padding: 0px 0px;
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #555;
-  white-space: nowrap;
-}
-
-#panelHeader:hover {
-  background: #555;
-}
-
-#panelToggle {
-  font-weight: bold;
-  color: #88ff88;
-  font-size: 14px;
-}
-
-#panelContent {
-  padding: 0px 0px;
-  display: none;
-  flex-direction: column;
-  gap: 10px;
-  background: #2a2a2a;
-}
-
-#optionsPanel.expanded #panelContent {
-  display: flex;
-}
-
-#optionsPanel.expanded #panelContent {
-  display: flex;
-}
-
-.option-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.option-group label {
-  font-size: 12px;
-  color: #aaa;
-  font-weight: bold;
-}
-
-.option-group input[type="checkbox"] {
-  width: auto;
-  margin-right: 5px;
-  cursor: pointer;
-}
-
-.option-group input[type="range"],
-.option-group input[type="number"] {
-  background: #333;
-  color: #fff;
-  border: 1px solid #555;
-  padding: 5px;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 12px;
-}
-
-.option-group input[type="range"] {
-  cursor: pointer;
-}
-
-.option-value {
-  font-size: 11px;
-  color: #88ff88;
-  margin-top: 2px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-size: 12px;
-  color: #ccc;
-}
-
 </style>
+<link rel="stylesheet" href="main.css">
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
@@ -166,7 +44,19 @@ h3 { text-align:center; }
       <input type="range" id="foodFrequencySlider" min="1" max="60" value="20" step="1">
       <div class="option-value">seconds: <span id="foodFrequencySecs">0.3</span></div>
     </div>
+
+    
   </div>
+</div>
+<div id="controlPanel">
+   <button id="viewToggle">📡</button>
+   <button id="btn2">B 2</button>
+   <button id="btn3">B 3</button>
+   <button id="btn4">B 4</button>
+   <button id="btn5">B 5</button>
+   <button id="btn6">B 6</button>
+   <button id="btn7">B 7</button>
+   <button id="btn8">B 8</button>
 </div>
 
 <canvas id="bg" class="gameCanvas"></canvas>
@@ -212,13 +102,16 @@ const dbgCanvas = document.getElementById("dbg");
 dbgCanvas.width = window.innerWidth;
 dbgCanvas.height = window.innerHeight;
 
-const TILE_SIZE = 20, COLS=Math.floor(bgCanvas.width/TILE_SIZE), ROWS=Math.floor(bgCanvas.height/TILE_SIZE);
-const canvasWidth = COLS * TILE_SIZE;
-const canvasHeight = ROWS * TILE_SIZE;
+const TILE_SIZE = 20;
+let COLS=Math.floor(bgCanvas.width/TILE_SIZE);
+let ROWS=Math.floor(bgCanvas.height/TILE_SIZE);
+let canvasWidth = COLS * TILE_SIZE;
+let canvasHeight = ROWS * TILE_SIZE;
 
 bgCanvas.width = fgCanvas.width = canvasWidth;
 bgCanvas.height = fgCanvas.height = canvasHeight;
-dbgCanvas.height = fgCanvas.height = canvasHeight;
+dbgCanvas.width = canvasWidth;
+dbgCanvas.height = canvasHeight;
 
 const bgCtx = bgCanvas.getContext("2d");
 const fgCtx = fgCanvas.getContext("2d");
@@ -232,8 +125,16 @@ const WANDER_DIST = 6;
 const EGG_HATCH_TIME = 1000;
 const SPIDER_COOLDOWN = 5 * 60; //frames ~Xs * 60fps
 const FOOD_SPAWN_INTERVAL = 20 * 60; //frames ~Xs * 60fps
+const WORLD_X_MAX = 80; // Each nest is 80 blocks wide
+const WORLD_Y_MAX = 160;
+const WORLD_Z_MAX = 40;
+
+//const CAMERA_BUFFER = 4; // 4 block buffer on left/right sides
+
 let foodSpawnTimer=FOOD_SPAWN_INTERVAL;
 const FOOD_GROUP_SIZE=5;
+
+const OVERWORLD_Y_RATIO = 20; //Number of tiles in the overworld to the next nest section
 
 // Mutable configuration variables
 let showDebugPaths = false;
@@ -241,9 +142,16 @@ let maxEntities = 2000;
 let numSpiders = 1;
 let foodSpawnAmount = 5;
 let foodSpawnInterval = FOOD_SPAWN_INTERVAL;
+let currentView = 'nest'; // 'nest' or 'overworld' or 'both'
+let currentNestIndex = 0; // Which nest section we're viewing
+
+// Camera variables
+let camera1X = 0;
+let camera1Y = 0;
 
 // Connect option panel controls
 jq('#showPathsCheck').on('change', function() {
+  clearDebug(dbgCtx);
   showDebugPaths = jq(this).is(':checked');
 });
 
@@ -280,6 +188,30 @@ const keys={}; // track keys
 jq(document).keydown(e=>keys[e.key]=true);
 jq(document).keyup(e=>keys[e.key]=false);
 
+// Handle window resize
+window.addEventListener('resize', function() {
+  //reset background, foreground, and debug canvas sizes
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+  fgCanvas.width = window.innerWidth;
+  fgCanvas.height = window.innerHeight;
+  dbgCanvas.width = window.innerWidth;
+  dbgCanvas.height = window.innerHeight;
+  
+  // Recalculate columns, rows, and canvas dimensions based on new window size
+  COLS = Math.floor(bgCanvas.width / TILE_SIZE);
+  ROWS = Math.floor(bgCanvas.height / TILE_SIZE);
+  canvasWidth = COLS * TILE_SIZE;
+  canvasHeight = ROWS * TILE_SIZE;
+  
+  bgCanvas.width = fgCanvas.width = canvasWidth;
+  bgCanvas.height = fgCanvas.height = canvasHeight;
+  dbgCanvas.width = canvasWidth;
+  dbgCanvas.height = canvasHeight;
+  
+  drawBackground(bgCtx);
+});
+
 
 const map=[];
 for(let y=0;y<ROWS;y++){
@@ -287,13 +219,62 @@ for(let y=0;y<ROWS;y++){
   map.push(row);
 }
 
+// // Map by nest section - fixed X,Y,Z
+// const nestMaps = [];
+// for(let nestIdx = 0; nestIdx < WORLD_Y_MAX/OVERWORLD_Y_RATIO; nestIdx++) {
+//   let nestMap = [];
+//   for(let y=0;y<ROWS;y++){
+//     let row=[]; for(let x=0;x<WORLD_X_MAX;x++) row.push(y<TILE_OPEN_SPACE?TILE.EMPTY:TILE.DIRT);
+//     nestMap.push(row);
+//   }
+//   nestMaps.push(nestMap);
+// }
+
 // initial food on surface
 let foods = new Map();
 for(let i=0;i<foodSpawnAmount;i++){
-  let fx=Math.floor(Math.random()*COLS);
-  let fy=Math.floor(Math.random()*TILE_OPEN_SPACE);
-  foods.set(get2dHash(fx, fy), {x:fx,y:fy,carry:false});
+  let fx=Math.floor(Math.random()*WORLD_X_MAX);
+  let fy=Math.floor(Math.random()*WORLD_Y_MAX);
+  let fz= 0; //surface level
+  foods.set(get3dHash(fx, fy, fz), {x:fx,y:fy,z:fz,carry:false});
 }
+
+// Handle view toggle
+jq('#viewToggle').on('click', function() {
+  if(currentView === 'nest') {
+    currentView = 'overworld';
+    jq(this).text('🏛️ Nest');
+  } else {
+    currentView = 'nest';
+    jq(this).text('📡 Overworld');
+  }
+});
+
+// Mouse wheel scrolling for nest view camera
+document.addEventListener('wheel', function(e) {
+  if(currentView === 'nest') {
+    e.preventDefault();
+    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
+    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+    
+    // Increased sensitivity for better control across 80-block nest
+    const scrollSensitivity = 0.1;
+    
+    if(e.deltaX !== 0) {
+      camera1X += e.deltaX * scrollSensitivity;
+    }
+    if(e.deltaY !== 0) {
+      camera1Y += e.deltaY * scrollSensitivity;
+    }
+    
+    // Clamp camera to valid range (nest X is ~80 wide, height Z is ~40)
+    const maxcamera1X = Math.max(0, WORLD_X_MAX - screenWidthInBlocks);
+    const maxcamera1Y = Math.max(0, WORLD_Z_MAX - screenHeightInBlocks);
+    
+    camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
+    camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
+  }
+}, { passive: false });
 
 let spiderScore=0;
 const colonies=[
@@ -305,8 +286,9 @@ const colonies=[
 let spiders = [];
 for(let i = 0; i < numSpiders; i++) {
   spiders.push({
-    x: Math.random() * COLS,
-    y: Math.random() * TILE_OPEN_SPACE,
+    x: Math.floor(Math.random() * WORLD_X_MAX),
+    y: Math.floor(Math.random() * WORLD_Y_MAX),
+    z: 0, //spawn on surface only
     target: null,
     path: null,
     pathIndex: 0,
@@ -316,40 +298,72 @@ for(let i = 0; i < numSpiders; i++) {
 }
 const skulls=[];
 
-colonies.forEach((col)=>{
-  let nx=0, ny=0;
-  do{
+colonies.forEach((col, colIdx)=>{
+  let nx=0, ny=0, nz=0;
+  //let nestMap = nestMaps[colIdx];
+  //do{
     //subtract 2 for egg spawn distance
-    nx = 2 + Math.floor(Math.random()*(COLS - 4));
-    ny = 2 + TILE_OPEN_SPACE + Math.floor(Math.random()*(ROWS - TILE_OPEN_SPACE - 4));
-  }while(map[ny][nx]!=TILE.DIRT);
-  map[ny][nx]=TILE.NEST;
-  map[ny + 1][nx]=TILE.NEST;
-  col.nest={x:nx, y:ny, sX:nx, sY:ny+1};
+    nx = 2 + Math.floor(Math.random()*(WORLD_X_MAX - 4));
+    ny = 0; //nests start at opposite sides of the volume
+    nz = 2 + 1 + Math.floor(Math.random()*(WORLD_Z_MAX - 4));
+
+    getViewMap()[ny][nx][nz] = TILE.NEST;
+    getViewMap()[ny + 1][nx][nz] = TILE.NEST;
+
+  // }while(nestMap[ny] && nestMap[ny][nx] && nestMap[ny][nx]!=TILE.DIRT);
+  // if(nestMap[ny] && nestMap[ny][nx] !== undefined) {
+  //   nestMap[ny][nx]=TILE.NEST;
+  //   nestMap[ny + 1][nx]=TILE.NEST;
+  // }
+  col.nest={x:nx, y:ny, z:nz, sX:nx, sY:ny+1};
   
   //place player
   col.player={x:nx+0.5, y:ny+0.5, carrying:null};
   
   // spawn egg
-  let ex = nx+1, ey = ny;
-  if(map[ey][ex] == TILE.DIRT) {
-    map[ey][ex] = TILE.EMPTY;
-    col.eggs.set(get2dHash(ex, ey), {x:ex, y:ey, type:ANT_TYPE.WORKER, timer:EGG_HATCH_TIME, carry:false});
+  let ex = nx+1, ey = ny, ez = nz; //spawn egg 1 block to the right
+  if(getViewMap()[ez][ey][ex] == TILE.DIRT) {
+    getViewMap()[ez][ey][ex] = TILE.EMPTY;
+    col.eggs.set(get3dHash(ex, ey, ez), {x:ex, y:ey, z:ez, type:ANT_TYPE.WORKER, timer:EGG_HATCH_TIME, carry:false});
   }
 });
 
 // click-to-move
 document.addEventListener('click', e=>{
-  // Don't process clicks on the options panel
-  if(document.getElementById('optionsPanel').contains(e.target)) {
+  // Don't process clicks on the control or options panel
+  if(document.getElementById('optionsPanel').contains(e.target) || 
+     document.getElementById('controlPanel').contains(e.target) ||
+     e.target.tagName === 'BUTTON') {
     return;
   }
   
   const rect=fgCanvas.getBoundingClientRect();
-  const mx=(e.clientX-rect.left)/TILE_SIZE;
-  const my=(e.clientY-rect.top)/TILE_SIZE;
-  if(mx >= 0 && mx < COLS && my >= 0 && my < ROWS) {
-    colonies[0].playerTarget={x:mx, y:my};
+  let mx=(e.clientX-rect.left)/TILE_SIZE;
+  let my=(e.clientY-rect.top)/TILE_SIZE;
+  
+  // Apply camera offset in nest view
+  if(currentView === 'nest') {
+    mx += camera1X;
+    my = nestIdx;
+    mz += camera1Y;
+    // Check bounds against nest size
+    if(mx >= 0 && mx < WORLD_X_MAX
+       && my >= 0 && my < WORLD_Y_MAX
+       && mz >= 0 && mz < WORLD_Z_MAX) {
+      colonies[0].playerTarget={x:mx, y:my, z:mz};
+    }
+  } else {
+    //Apply camera offset in overworld view
+    // Check bounds
+    // Now camera is landscape, so Y is horizontal and X is vertical
+    mx += camera1Y;
+    my += camera1X;
+    mz += 0; //any clicks top-down will be surface or nest
+    if(mx >= 0 && mx < WORLD_X_MAX
+        && my >= 0 && my < WORLD_Y_MAX
+        && mz >= 0 && mz < WORLD_Z_MAX) {
+      colonies[0].playerTarget={x:mx, y:my, z:mz};
+    }
   }
 });
 
@@ -390,22 +404,32 @@ function update(){
 	if(keys['w'])dy=-0.1;
 	if(keys['s'])dy=0.1;
 	
-	colonies[0].player.x=Math.max(0,Math.min(COLS-1,colonies[0].player.x+dx));
-	colonies[0].player.y=Math.max(0,Math.min(ROWS-1,colonies[0].player.y+dy));
+	// Clamp player 1 to appropriate map bounds
+	//let maxX = (currentView === 'nest') ? WORLD_X_MAX - 1 : COLS - 1;
+	colonies[0].player.x=Math.max(0,Math.min(WORLD_X_MAX-1,colonies[0].player.x+dx));
+	colonies[0].player.y=nestIdx;
+	colonies[0].player.z=Math.max(0,Math.min(WORLD_Z_MAX-1,colonies[0].player.z+dz));
+	
+
 	
 	// pickup/drop with 'e'
 	if(keys['e']){
 		keys['e']=false; // prevent repeat
-		let tx=Math.floor(colonies[0].player.x), ty=Math.floor(colonies[0].player.y);
+		let tx=Math.floor(colonies[0].player.x)
+    let ty=nestIdx;
+    let tz = Math.floor(colonies[0].player.z);
+		let viewMap = getViewMap();
+    let block = getBlockAt(tx, ty, tz);
 		if(!colonies[0].player.carrying){
-		  if(map[ty][tx]==TILE.FOOD || map[ty][tx]==TILE.EGG){
-			colonies[0].player.carrying=map[ty][tx];
-			map[ty][tx]=TILE.EMPTY;
+		  if(block == TILE.FOOD || block==TILE.EGG){
+        colonies[0].player.carrying=getBlockAt(tx, ty, tz);
+        setBlock(tx, ty, tz, TILE.EMPTY);
 		  }
 		}else{
-		  if(map[ty][tx]==TILE.EMPTY){
-			map[ty][tx] = colonies[0].player.carrying;
-			colonies[0].player.carrying = null;
+		  if(block==TILE.EMPTY){
+        //drop carried item
+        setBlock(tx, ty, tz, colonies[0].player.carrying);
+        colonies[0].player.carrying = null;
 		  }
 		}
 	}
@@ -416,14 +440,16 @@ function update(){
 	if(keys['ArrowRight'])ex = 0.1;
 	if(keys['ArrowUp'])ey = -0.1;
 	if(keys['ArrowDown'])ey = 0.1;
-	colonies[1].player.x=Math.max(0,Math.min(COLS-1,colonies[1].player.x+ex));
-	colonies[1].player.y=Math.max(0,Math.min(ROWS-1,colonies[1].player.y+ey));
+  colonies[1].player.x=Math.max(0,Math.min(WORLD_X_MAX-1,colonies[1].player.x+ex));
+	colonies[1].player.y=nestIdx;
+	colonies[1].player.z=Math.max(0,Math.min(WORLD_Z_MAX-1,colonies[1].player.z+ey));
 		
 
    colonies.forEach((col,idx)=>{
   
       //hatch eggs
-      col.eggs.forEach(egg=>{
+      const eggKeysToDelete = [];
+      col.eggs.forEach((egg, key)=>{
          if(egg) {
             egg.timer--;
             if(egg.timer <= 0) {
@@ -431,17 +457,17 @@ function update(){
                let totalEntities = countTotalEntities();
                if(totalEntities < maxEntities) {
                   if(egg.type == ANT_TYPE.SOLDIER) {
-                     col.soldiers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.SOLDIER});
+                     col.soldiers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, colIdx:idx, type:ANT_TYPE.SOLDIER});
                   }
                   else {
-                     col.workers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, type:ANT_TYPE.WORKER});
+                     col.workers.push({x:egg.x+0.5, y:egg.y+0.5, path:null, pathIndex:0, colIdx:idx, type:ANT_TYPE.WORKER});
                   }
                }
-               //map[col.eggs[i].y][col.eggs[i].x] = TILE.EMPTY;
-               col.eggs.delete(get2dHash(egg.x, egg.y));
+               eggKeysToDelete.push(key);
             }
          }
       });
+      eggKeysToDelete.forEach(key => col.eggs.delete(key));
       /*
       for(let i = col.eggs.length-1; i >= 0; i--) {
          col.eggs[i].timer--;
@@ -482,9 +508,11 @@ function update(){
        }
 
       let tx=Math.floor(player.x), ty=Math.floor(player.y);
+      let viewMap = getViewMap();
+      let maxX = (currentView === 'nest') ? WORLD_X_MAX : COLS;
       //dig
-      if(map[ty][tx]==TILE.DIRT) {
-         map[ty][tx]=TILE.EMPTY;
+      if(ty >= 0 && ty < ROWS && tx >= 0 && tx < maxX && viewMap[ty] && viewMap[ty][tx]==TILE.DIRT) {
+         viewMap[ty][tx]=TILE.EMPTY;
          drawBackground(bgCtx);
       }
       //pickup Egg
@@ -519,22 +547,18 @@ function update(){
       // workers: find food
       col.workers.forEach(ant=>{
          if(!ant.path){
-           //let food=null;
-           //for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(map[y][x]==TILE.FOOD) food={x,y};
-           //food = foods[Math.floor(Math.random() * foods.size)];
            if(foods.size > 0){
               let target = getRandMap(foods);
               ant.target=target;
-              ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),target.x,target.y);
+              ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),Math.floor(target.x),Math.floor(target.y));
               ant.pathIndex=0;
-              if (!ant.path && map[target.y][target.x] == TILE.DIRT) {
-                 foods.delete(get2dHash(target.x,target.y));
-              }
-           }else{
+           }
+           if(!ant.path) {
             let wander=getRandomNearbyEmptyTile(Math.floor(ant.x),Math.floor(ant.y), WANDER_DIST);
             if(wander){
               ant.target=wander;
-              ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),wander.x,wander.y); ant.pathIndex=0;
+              ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),wander.x,wander.y); 
+              ant.pathIndex=0;
             }
          }
          }
@@ -547,9 +571,11 @@ function update(){
          } else { ant.path=null; }
 
          let antX = Math.floor(ant.x), antY=Math.floor(ant.y);
+         let viewMap = getViewMap();
+         let maxX = (currentView === 'nest') ? WORLD_X_MAX : COLS;
          //dig
-         if(map[antY][antX]==TILE.DIRT){
-            map[antY][antX]=TILE.EMPTY;
+         if(antY >= 0 && antY < ROWS && antX >= 0 && antX < maxX && viewMap[antY] && viewMap[antY][antX]==TILE.DIRT){
+            viewMap[antY][antX]=TILE.EMPTY;
             drawBackground(bgCtx);
          }
          if(!ant.carrying && foods.has(get2dHash(antX, antY))){
@@ -599,9 +625,10 @@ function update(){
          } else { ant.path=null; }
 
          let antX = Math.floor(ant.x), antY=Math.floor(ant.y);
+         let viewMap = getViewMap();
          //dig
-         if(map[antY][antX]==TILE.DIRT) {
-            map[antY][antX]=TILE.EMPTY;
+         if(antY >= 0 && antY < ROWS && antX >= 0 && antX < COLS && viewMap[antY][antX]==TILE.DIRT) {
+            viewMap[antY][antX]=TILE.EMPTY;
             drawBackground(bgCtx);
          }
          /*if(!ant.carrying && map[antY][antX]==TILE.FOOD){
@@ -712,93 +739,198 @@ function update(){
   while(skulls.length&&skulls[0].timer<=0) skulls.shift();
 }
 
+function getBlockAt(x, y, z) {
+  //z = Math.floor(z/OVERWORLD_Y_RATIO) * OVERWORLD_Y_RATIO;
+  return nestMap[x][y][z];
+}
+
+function setBlock(x, y, z, tile) {
+  //z = Math.floor(z/OVERWORLD_Y_RATIO) * OVERWORLD_Y_RATIO;
+
+  //check bounds
+  if(x >= 0 && x < WORLD_X_MAX
+        && y >= 0 && y < WORLD_Y_MAX
+        && z >= 0 && z < WORLD_Z_MAX) {
+    nestMap[x][y][z] = tile;
+  }
+}
+
+function getViewMap() {
+    // // In nest view, we return the nest map but need to ensure it's the right size
+    // let nestMap = nestMaps[currentNestIndex];
+    // // Pad with EMPTY tiles if necessary to reach COLS width
+    // if(nestMap[0] && nestMap[0].length < COLS) {
+    //   for(let y = 0; y < nestMap.length; y++) {
+    //     while(nestMap[y].length < COLS) {
+    //       nestMap[y].push(TILE.EMPTY);
+    //     }
+    //   }
+    // }
+    return nestMap;
+}
+
+// Get the appropriate map for a colony (always uses the colony's nest map)
+// function getColonyMap(colonyIdx) {
+//   return nestMaps[colonyIdx];
+// }
+
 function drawBackground(ctx) {
    ctx.clearRect(0,0,canvasWidth,canvasHeight);
+   ctx.save();
    
+   // Apply camera offset
+   ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
+   
+   
+   const viewMap = getViewMap();
    ctx.fillStyle="#5B3A1E";
-   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
-     let t = map[y][x];
-     if(t==TILE.DIRT) {
-         ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+   
+   if(currentView === 'overworld') {
+    for(let x=0;x < WORLD_X_MAX;x++) {
+      for(let y=0;y < WORLD_Y_MAX;y++) {
+        for(let z=0;z < WORLD_Z_MAX;z++) {
+        if(viewMap[y] && viewMap[y][x] && viewMap[y][x][z]) {
+          let t = getBlockAt(x, y, z);
+          if(t==TILE.DIRT) {
+            ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+          }
+        }
+      }
+    }
+    //  // Draw overworld - each column is a nest section
+    //  for(let y=0;y<ROWS;y++) {
+    //    for(let x=0;x<COLS;x++){
+    //      let nestIdx = Math.floor(x / WORLD_X_MAX);
+    //      let localX = x % WORLD_X_MAX;
+    //      if(nestIdx < nestMaps.length && nestMaps[nestIdx][y] && localX < nestMaps[nestIdx][y].length) {
+    //        let t = nestMaps[nestIdx][y][localX];
+    //        if(t==TILE.DIRT) {
+    //          ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+    //        }
+    //      }
+    //    }
+    //  }
+    //  // Draw nest section dividers
+    //  ctx.strokeStyle="#888";
+    //  ctx.lineWidth=2;
+    //  for(let i=1; i<3; i++) {
+    //    let x = i * WORLD_X_MAX * TILE_SIZE;
+    //    ctx.beginPath();
+    //    ctx.moveTo(x, 0);
+    //    ctx.lineTo(x, canvasHeight);
+    //    ctx.stroke();
+    //  }
+   } else {
+     // Draw regular nest view - iterate through world coordinates visible in camera
+     const screenWidthInBlocks = canvasWidth / TILE_SIZE;
+     const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+     for(let y=Math.max(0, Math.floor(camera1Y)); y<Math.min(ROWS, Math.ceil(camera1Y+screenHeightInBlocks)); y++){
+       for(let x=Math.max(0, Math.floor(camera1X)); x<Math.min(WORLD_X_MAX, Math.ceil(camera1X+screenWidthInBlocks)); x++){
+         if(viewMap[y] && viewMap[y][x]) {
+           let t = viewMap[y][x];
+           if(t==TILE.DIRT) {
+             ctx.fillStyle="#5B3A1E",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+           }
+         }
+       }
      }
-     //food
-     //else if(t==TILE.FOOD)ctx.fillStyle="green",ctx.fillRect(x*TILE_SIZE+5,y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
-     /*else if(t==TILE.NEST) {
-       if(x == )
-       ctx.fillStyle = "gray",ctx.fillRect(x*TILE_SIZE,y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-       ctx.fillStyle = "purple",ctx.fillRect(x*TILE_SIZE,(y*TILE_SIZE)+TILE_SIZE,TILE_SIZE,TILE_SIZE);
-     }*/
-    
-     //else if(t==TILE.EGG){ctx.fillStyle="white";ctx.beginPath();ctx.arc(x*TILE_SIZE+TILE_SIZE/2,y*TILE_SIZE+TILE_SIZE/2,TILE_SIZE/3,0,Math.PI*2);ctx.fill();}
    }
+   
+   ctx.restore();
 }
 
 function drawForeground(ctx) {
   ctx.clearRect(0,0,canvasWidth,canvasHeight);
+  ctx.save();
   
-  ctx.fillStyle="green";
-  foods.forEach(food=>{
+  // Apply camera offset
+  if(currentView === 'nest') {
+    ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
+  }
+  
+  if(currentView === 'overworld') {
+    // Draw overworld view - show colony locations and food
+    ctx.fillStyle="green";
+    foods.forEach(food=>{
       if (food) ctx.fillRect(food.x*TILE_SIZE+5,food.y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
-  });
-  colonies.forEach(col=>{
-    
-    ctx.fillStyle = "gray",ctx.fillRect(col.nest.x*TILE_SIZE,col.nest.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-    ctx.fillStyle = "purple",ctx.fillRect(col.nest.sX*TILE_SIZE,col.nest.sY*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-    
-    ctx.fillStyle=col.color;
-    
-    //draw player
-    ctx.beginPath();
-    ctx.arc(col.player.x*TILE_SIZE,col.player.y*TILE_SIZE,TILE_SIZE/2-2,0,Math.PI*2);ctx.fill();
-    
-    //draw workers
-    col.workers.forEach(w=>{
-	   ctx.beginPath();
-      ctx.arc(w.x*TILE_SIZE,w.y*TILE_SIZE,TILE_SIZE/2-3,0,Math.PI*2);ctx.fill();
-	   if(w.carrying){
-		   ctx.fillStyle=w.carrying==TILE.FOOD?"green":"white";
-		   ctx.fillRect(w.x*TILE_SIZE+4,w.y*TILE_SIZE+4,6,6);
-         ctx.fillStyle=col.color;
-	   }
     });
-    col.soldiers.forEach(ant=>{
-      //ctx.fillStyle= blendColor(col.color, "#800080", 0.3); // 30% purple tint
-      //ctx.fillStyle = "purple";
-      //ctx.fillStyle = col.color;
-	   ctx.beginPath();
-      ctx.arc(ant.x*TILE_SIZE, ant.y*TILE_SIZE, TILE_SIZE * 0.45, 0, Math.PI*4);ctx.fill();
+    
+    // Draw colonies as markers in overworld
+    colonies.forEach((col,idx)=>{
+      ctx.fillStyle = col.color;
+      ctx.beginPath();
+      ctx.arc(col.player.x*TILE_SIZE,col.player.y*TILE_SIZE,TILE_SIZE/2,0,Math.PI*2);ctx.fill();
     });
-	 if(col.player.carrying){
-      ctx.fillStyle=col.player.carrying==TILE.FOOD?"green":"white";
-      ctx.fillRect(col.player.x*TILE_SIZE+4,col.player.y*TILE_SIZE+4,6,6);
-    }
-    ctx.fillStyle = "white";
-    col.eggs.forEach(egg=>{
-      if (egg) {
-         if(egg.carry) {
-            ctx.fillRect(egg.x*TILE_SIZE+4,egg.y*TILE_SIZE+4,6,6);
-         }
-         else {
-            ctx.fillRect(egg.x*TILE_SIZE+5,egg.y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
-         }
+  } else {
+    // Draw nest view
+    ctx.fillStyle="green";
+    foods.forEach(food=>{
+      if (food) ctx.fillRect(food.x*TILE_SIZE+5,food.y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
+    });
+    colonies.forEach(col=>{
+      ctx.fillStyle = "gray",ctx.fillRect(col.nest.x*TILE_SIZE,col.nest.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+      ctx.fillStyle = "purple",ctx.fillRect(col.nest.sX*TILE_SIZE,col.nest.sY*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+      
+      ctx.fillStyle=col.color;
+      
+      //draw player
+      ctx.beginPath();
+      ctx.arc(col.player.x*TILE_SIZE,col.player.y*TILE_SIZE,TILE_SIZE/2-2,0,Math.PI*2);ctx.fill();
+      
+      //draw workers
+      col.workers.forEach(w=>{
+        ctx.beginPath();
+        ctx.arc(w.x*TILE_SIZE,w.y*TILE_SIZE,TILE_SIZE/2-3,0,Math.PI*2);ctx.fill();
+        if(w.carrying){
+          ctx.fillStyle=w.carrying==TILE.FOOD?"green":"white";
+          ctx.fillRect(w.x*TILE_SIZE+4,w.y*TILE_SIZE+4,6,6);
+          ctx.fillStyle=col.color;
+        }
+      });
+      col.soldiers.forEach(ant=>{
+        ctx.beginPath();
+        ctx.arc(ant.x*TILE_SIZE, ant.y*TILE_SIZE, TILE_SIZE * 0.45, 0, Math.PI*4);ctx.fill();
+      });
+      if(col.player.carrying){
+        ctx.fillStyle=col.player.carrying==TILE.FOOD?"green":"white";
+        ctx.fillRect(col.player.x*TILE_SIZE+4,col.player.y*TILE_SIZE+4,6,6);
       }
+      ctx.fillStyle = "white";
+      col.eggs.forEach((egg, key)=>{
+        if (egg && egg.x !== undefined && egg.y !== undefined) {
+          if(egg.carry) {
+            ctx.fillRect(egg.x*TILE_SIZE+4,egg.y*TILE_SIZE+4,6,6);
+          }
+          else {
+            ctx.fillRect(egg.x*TILE_SIZE+5,egg.y*TILE_SIZE+5,TILE_SIZE-10,TILE_SIZE-10);
+          }
+        }
+      });
     });
-  });
-  spiders.forEach(s=>{
+    spiders.forEach(s=>{
       if(s.timer != -1) {
-         ctx.fillStyle="white";
-         ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+        ctx.fillStyle="white";
+        ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
       }
       else {
-         ctx.fillStyle="darkblue";
-         ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+        ctx.fillStyle="darkblue";
+        ctx.fillRect(s.x*TILE_SIZE,s.y*TILE_SIZE,TILE_SIZE,TILE_SIZE);
       }
-  });
-  for(let sk of skulls){ ctx.fillText("💀",sk.x*TILE_SIZE,sk.y*TILE_SIZE);}
+    });
+    for(let sk of skulls){ ctx.fillText("💀",sk.x*TILE_SIZE,sk.y*TILE_SIZE); }
+  }
+  
+  ctx.restore();
 }
 
 function drawDebug(ctx) {
-   ctx.clearRect(0,0,canvasWidth,canvasHeight);
+   clearDebug(ctx);
+   ctx.save();
+   
+   // Apply camera offset
+   if(currentView === 'nest') {
+     ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
+   }
   
    //ctx.fillStyle="yellow";
    colonies.forEach(col=>{
@@ -812,6 +944,12 @@ function drawDebug(ctx) {
          }
       });
    });
+   
+   ctx.restore();
+}
+
+function clearDebug(ctx) {
+   ctx.clearRect(0,0,canvasWidth,canvasHeight);
 }
    
  
@@ -831,8 +969,13 @@ function findPath(startX, startY, goalX, goalY){
   const cameFrom = {};
   const gScore = {};
   const fScore = {};
+  const viewMap = getViewMap();
+  
+  // Determine map bounds based on actual viewMap size
+  const mapWidth = viewMap[0] ? viewMap[0].length : COLS;
+  const mapHeight = viewMap.length;
 
-  function key(x,y){ return y * COLS + x; }
+  function key(x,y){ return y * mapWidth + x; }
 
   let startK = key(startX, startY);
   gScore[startK] = 0;
@@ -857,8 +1000,8 @@ function findPath(startX, startY, goalX, goalY){
     for (let d of dirs) {
       let nx = current.x + d.x;
       let ny = current.y + d.y;
-      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
-      if (map[ny][nx] == TILE.DIRT) continue;
+      if (nx < 0 || nx >= mapWidth || ny < 0 || ny >= mapHeight) continue;
+      if (!viewMap[ny] || !viewMap[ny][nx] || viewMap[ny][nx] == TILE.DIRT) continue;
 
       let nk = key(nx, ny);
       if (closed.has(nk)) continue;
@@ -923,14 +1066,21 @@ function countTotalEntities() {
   return total;
 }
 
-// ✅ helper: get random empty tile near (x,y) within radius, underground
-function getRandomNearbyEmptyTile(centerX, centerY, radius){
+
+// ✅ helper: get random empty tile near (x,y,z) within radius
+function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius){
   let tries=10;
+  //let viewMap = getViewMap();
+  if (!viewMap) return null;
   while(tries-- >0){
     let rx=centerX+Math.floor(Math.random()*radius*2 - radius);
     let ry=centerY+Math.floor(Math.random()*radius*2 - radius);
-    if(rx>=0&&rx<COLS&&ry>=4&&ry<ROWS && map[ry][rx]!=TILE.DIRT){
-      return {x:rx, y:ry};
+    let rz=centerZ+Math.floor(Math.random()*radius*2 - radius);
+    if(rx>=0&&rx<WORLD_X_MAX
+        &&ry>=0&&ry<WORLD_Y_MAX
+        &&rz>=0&&rz<WORLD_Z_MAX
+        && getBlockAt(ry,rx,rz) != TILE.DIRT) {
+      return convertToWorldLocation(rx, ry, rz);
     }
   }
   return null;
@@ -938,6 +1088,14 @@ function getRandomNearbyEmptyTile(centerX, centerY, radius){
 
 function get2dHash(x, y) {
    return `${x},${y}`;
+}
+
+function convertToWorldLocation(x, y, z) {
+    return {x:x, y: Math.floor(y/OVERWORLD_Y_RATIO) * OVERWORLD_Y_RATIO, z: z};
+}
+
+function get3dHash(x, y, z) {
+   return `${x},${y},${z}`;
 }
 
 function getRandMap(map) {
@@ -950,6 +1108,14 @@ function getRandMap(map) {
 function findFoodAt(fx, fy) {
    foods.forEach(food=>{
       if(Math.abs(food.x - fx) < 0.7 && Math.abs(food.y - fy) < 0.7) {
+         return food;
+      }
+   });
+}
+
+function findFoodAt(fx, fy, fz) {
+   foods.forEach(food=>{
+      if(Math.abs(food.x - fx) < 0.7 && Math.abs(food.y - fy) < 0.7 && Math.abs(food.z - fz) < 0.7) {
          return food;
       }
    });
@@ -1053,7 +1219,8 @@ class MinHeap {
 
 function gameLoop() {
   update();         // move ants, spawn eggs, AI
-  drawForeground(fgCtx); // only redraw moving things
+  drawBackground(bgCtx); // redraw background with camera offset
+  drawForeground(fgCtx); // redraw moving things
   if(showDebugPaths) drawDebug(dbgCtx);
   requestAnimationFrame(gameLoop);
 }
