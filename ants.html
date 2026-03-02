@@ -254,10 +254,10 @@ for(let i=0;i<foodSpawnAmount;i++){
 jq('#viewToggle').on('click', function() {
   if(currentView === 'nest') {
     currentView = 'overworld';
-    jq(this).text('🏛️ Nest');
+    jq(this).text('🏛️');
   } else {
     currentView = 'nest';
-    jq(this).text('📡 Overworld');
+    jq(this).text('📡');
   }
 });
 
@@ -281,6 +281,28 @@ document.addEventListener('wheel', function(e) {
     // Clamp camera to valid range (nest X is ~80 wide, height Z is ~40)
     const maxcamera1X = Math.max(0, WORLD_X_MAX - screenWidthInBlocks);
     const maxcamera1Y = Math.max(0, WORLD_Z_MAX - screenHeightInBlocks);
+    
+    camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
+    camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
+  }
+  else {
+    // In overworld view, scroll pans across the wider world
+    e.preventDefault();
+    const scrollSensitivity = 0.1;
+    
+    if(e.deltaX !== 0) {
+      camera1X += e.deltaX * scrollSensitivity;
+    }
+    if(e.deltaY !== 0) {
+      camera1Y += e.deltaY * scrollSensitivity;
+    }
+    
+    // Clamp camera to valid range (world is 80x160)
+    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
+    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+    
+    const maxcamera1X = Math.max(0, WORLD_Y_MAX - screenWidthInBlocks);
+    const maxcamera1Y = Math.max(0, WORLD_X_MAX - screenHeightInBlocks);
     
     camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
     camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
@@ -903,31 +925,30 @@ function drawForeground(ctx) {
   let dx = 0;
   let dy = 0;
   
-  // Apply camera offset
-  if(currentView === 'nest') {
-    ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
-  }
+  // Apply camera offset\
+  ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
+
   
-  if(currentView === 'overworld') {
-    // Draw overworld view - show colony locations and food
-    ctx.fillStyle="green";
-    foods.forEach(food=>{
-      if (food) {
-        dx = currentView === 'nest' ? food.x * TILE_SIZE : food.y * TILE_SIZE;
-        dy = currentView === 'nest' ? food.z * TILE_SIZE : food.x * TILE_SIZE;
-        ctx.fillRect(dx+5,dy+5,TILE_SIZE-10,TILE_SIZE-10);
-      }
-    });
+  // if(currentView === 'overworld') {
+  //   // Draw overworld view - show colony locations and food
+  //   ctx.fillStyle="green";
+  //   foods.forEach(food=>{
+  //     if (food) {
+  //       dx = currentView === 'nest' ? food.x * TILE_SIZE : food.y * TILE_SIZE;
+  //       dy = currentView === 'nest' ? food.z * TILE_SIZE : food.x * TILE_SIZE;
+  //       ctx.fillRect(dx+5,dy+5,TILE_SIZE-10,TILE_SIZE-10);
+  //     }
+  //   });
     
-    // Draw colonies as markers in overworld
-    colonies.forEach((col,idx)=>{
-      ctx.fillStyle = col.color;
-      ctx.beginPath();
-      dx = currentView === 'nest' ? col.player.x * TILE_SIZE : col.player.y * TILE_SIZE;
-      dy = currentView === 'nest' ? col.player.z * TILE_SIZE : col.player.x * TILE_SIZE;
-      ctx.arc(dx,dy,TILE_SIZE/2,0,Math.PI*2);ctx.fill();
-    });
-  } else {
+  //   // Draw colonies as markers in overworld
+  //   colonies.forEach((col,idx)=>{
+  //     ctx.fillStyle = col.color;
+  //     ctx.beginPath();
+  //     dx = currentView === 'nest' ? col.player.x * TILE_SIZE : col.player.y * TILE_SIZE;
+  //     dy = currentView === 'nest' ? col.player.z * TILE_SIZE : col.player.x * TILE_SIZE;
+  //     ctx.arc(dx,dy,TILE_SIZE/2,0,Math.PI*2);ctx.fill();
+  //   });
+  // } else {
     // Draw nest view
     ctx.fillStyle="green";
     foods.forEach(food=>{
@@ -1014,7 +1035,7 @@ function drawForeground(ctx) {
       dy = currentView === 'nest' ? sk.z * TILE_SIZE : sk.x * TILE_SIZE;
       ctx.fillText("💀",dx,dy);
      }
-  }
+  // }
   
   ctx.restore();
 }
@@ -1024,9 +1045,7 @@ function drawDebug(ctx) {
    ctx.save();
    
    // Apply camera offset
-   if(currentView === 'nest') {
-     ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
-   }
+   ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
 
    let dx = 0;
    let dy = 0;
