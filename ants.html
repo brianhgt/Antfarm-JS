@@ -128,9 +128,17 @@ const ANT_TYPE = { QUEEN:0, WORKER:1, SOLDIER:2, FEMALE:3, MALE:4 };
 const TILE_OPEN_SPACE = 1;
 const SPIDER_CAN_GO_BELOW = false;
 const WANDER_DIST = 6;
-const EGG_HATCH_TIME = 1000;
-const SPIDER_COOLDOWN = 5 * 60; //frames ~Xs * 60fps
-const FOOD_SPAWN_INTERVAL = 20 * 60; //frames ~Xs * 60fps
+// timings are now expressed in seconds rather than frames. the main loop
+// will pass a delta time so all of the various timers can be updated
+// consistently regardless of frame rate.
+const EGG_HATCH_TIME = 1000 / 60; // ~16.7 seconds
+const SPIDER_COOLDOWN = 5;       // seconds between bites
+const FOOD_SPAWN_INTERVAL = 20;  // seconds between food spawns
+
+// movement speeds (tiles per second)
+const PLAYER_SPEED = 6;   // roughly 0.1 per frame @60fps
+const ANT_SPEED    = 2.4; // roughly 0.04 per frame @60fps
+const SPIDER_SPEED = 1.2; // roughly 0.02 per frame @60fps
 const WORLD_X_MAX = 80; // Each nest is 80 blocks wide
 const WORLD_Y_MAX = 160;
 const WORLD_Z_MAX = 40;
@@ -187,8 +195,8 @@ jq('#foodAmountSlider').on('input', function() {
 jq('#foodFrequencySlider').on('input', function() {
   let value = parseInt(jq(this).val());
   jq('#foodFrequencyValue').text(value);
-  foodSpawnInterval = value * 60; // convert seconds to frames (@ 60fps)
-  jq('#foodFrequencySecs').text((value / 60).toFixed(1));
+  foodSpawnInterval = value;
+  jq('#foodFrequencySecs').text(value.toFixed(1));
 });
 
 const keys={}; // track keys
@@ -254,10 +262,10 @@ for(let i=0;i<foodSpawnAmount;i++){
 jq('#viewToggle').on('click', function() {
   if(currentView === 'nest') {
     currentView = 'overworld';
-    jq(this).text('🏛️ Nest');
+    jq(this).text('🏛️');
   } else {
     currentView = 'nest';
-    jq(this).text('📡 Overworld');
+    jq(this).text('📡');
   }
 });
 
@@ -421,8 +429,11 @@ document.addEventListener('click', e=>{
 
 
 
-function update(){
-  foodSpawnTimer--;
+// `delta` is the elapsed time in seconds since the last frame. all logic that
+// depends on time (movement, timers, etc.) uses this value so the simulation
+// runs at a defined speed regardless of the actual framerate.
+function update(delta){
+  foodSpawnTimer -= delta;
   if(foodSpawnTimer<=0){
     foodSpawnTimer=foodSpawnInterval;
     for(let i=0;i<foodSpawnAmount;i++){
@@ -448,29 +459,29 @@ function update(){
   }
   */
 	
-    // keyboard
-	let dx=0, dy=0, dz=0;
+    // keyboard – accumulate velocity and then scale by delta
+      let dx=0, dy=0, dz=0;
 	let ex=0, ey=0, ez=0;
 	
 	//player 1
   if(currentView === 'nest') {
-    if(keys['w'])dz=-0.1;
-    if(keys['s'])dz=0.1;
-    if(keys['a'])dx=-0.1;
-	  if(keys['d'])dx=0.1;
+    if(keys['w']) dz -= PLAYER_SPEED;
+    if(keys['s']) dz += PLAYER_SPEED;
+    if(keys['a']) dx -= PLAYER_SPEED;
+    if(keys['d']) dx += PLAYER_SPEED;
   } else {
     //in overworld view, vertical movement is along x axis instead of z
-    if(keys['w'])dx=-0.1;
-    if(keys['s'])dx=0.1;
-    if(keys['a'])dy=-0.1;
-	  if(keys['d'])dy=0.1;
+    if(keys['w']) dx -= PLAYER_SPEED;
+    if(keys['s']) dx += PLAYER_SPEED;
+    if(keys['a']) dy -= PLAYER_SPEED;
+    if(keys['d']) dy += PLAYER_SPEED;
   }
 	
 	// Clamp player 1 to appropriate map bounds
 	//let maxX = (currentView === 'nest') ? WORLD_X_MAX - 1 : COLS - 1;
-	colonies[0].player.x=Math.max(0,Math.min(WORLD_X_MAX-1,colonies[0].player.x+dx));
-	colonies[0].player.y=Math.max(0,Math.min(WORLD_Y_MAX-1,colonies[0].player.y+dy));
-	colonies[0].player.z=Math.max(0,Math.min(WORLD_Z_MAX-1,colonies[0].player.z+dz));
+  colonies[0].player.x=Math.max(0,Math.min(WORLD_X_MAX-1,colonies[0].player.x + dx * delta));
+  colonies[0].player.y=Math.max(0,Math.min(WORLD_Y_MAX-1,colonies[0].player.y + dy * delta));
+  colonies[0].player.z=Math.max(0,Math.min(WORLD_Z_MAX-1,colonies[0].player.z + dz * delta));
 	
 
 	
@@ -499,20 +510,20 @@ function update(){
 
 	//player 2
   if(currentView === 'nest') {
-    if(keys['ArrowUp'])ez=-0.1;
-    if(keys['ArrowDown'])ez=0.1;
-    if(keys['ArrowLeft'])ex=-0.1;
-	  if(keys['ArrowRight'])ex=0.1;
+    if(keys['ArrowUp']) ez -= PLAYER_SPEED;
+    if(keys['ArrowDown']) ez += PLAYER_SPEED;
+    if(keys['ArrowLeft']) ex -= PLAYER_SPEED;
+    if(keys['ArrowRight']) ex += PLAYER_SPEED;
   } else {
     //in overworld view, vertical movement is along x axis instead of z
-    if(keys['ArrowLeft'])ey=-0.1;
-	  if(keys['ArrowRight'])ey=0.1;
-    if(keys['ArrowUp'])ex=-0.1;
-    if(keys['ArrowDown'])ex=0.1;
+    if(keys['ArrowLeft']) ey -= PLAYER_SPEED;
+    if(keys['ArrowRight']) ey += PLAYER_SPEED;
+    if(keys['ArrowUp']) ex -= PLAYER_SPEED;
+    if(keys['ArrowDown']) ex += PLAYER_SPEED;
   }
-  colonies[1].player.x=Math.max(0,Math.min(WORLD_X_MAX-1,colonies[1].player.x+ex));
-  colonies[1].player.y=Math.max(0,Math.min(WORLD_Y_MAX-1,colonies[1].player.y+ey));
-	colonies[1].player.z=Math.max(0,Math.min(WORLD_Z_MAX-1,colonies[1].player.z+ez));
+  colonies[1].player.x=Math.max(0,Math.min(WORLD_X_MAX-1,colonies[1].player.x+ex * delta));
+  colonies[1].player.y=Math.max(0,Math.min(WORLD_Y_MAX-1,colonies[1].player.y+ey * delta));
+	colonies[1].player.z=Math.max(0,Math.min(WORLD_Z_MAX-1,colonies[1].player.z+ez * delta));
 		
 
    colonies.forEach((col,idx)=>{
@@ -520,9 +531,9 @@ function update(){
       //hatch eggs
       const eggKeysToDelete = [];
       col.eggs.forEach((egg, key)=>{
-         if(egg) {
-            egg.timer--;
-            if(egg.timer <= 0) {
+        if(egg) {
+          egg.timer -= delta;
+          if(egg.timer <= 0) {
                // Check entity limit before hatching
                let totalEntities = countTotalEntities();
                if(totalEntities < maxEntities) {
@@ -556,12 +567,12 @@ function update(){
       
       //hatch spiders
       for(let i = spiders.length-1; i >= 0; i--) {
-         if(spiders[i].timer >= 0) {
-            spiders[i].timer--;
-         }
-         if(spiders[i].cooldownTimer >= 0) {
-            spiders[i].cooldownTimer--;
-         }
+        if(spiders[i].timer >= 0) {
+          spiders[i].timer -= delta;
+        }
+        if(spiders[i].cooldownTimer >= 0) {
+          spiders[i].cooldownTimer -= delta;
+        }
       }
         
       
@@ -575,11 +586,14 @@ function update(){
          let ddy = col.playerTarget.y - player.y;
          let ddz = col.playerTarget.z - player.z;
          let dist=Math.sqrt(ddx*ddx+ddy*ddy+ddz*ddz);
-         if(dist>0.1) {
-           //TODO this is going to create some weird behavior through nest walls. 
-           // We should ideally check if the target is reachable before setting it,
-           // and if not maybe find a nearby reachable tile to move towards instead?
-           player.x+=0.1*ddx/dist, player.y+=0.1*ddy/dist, player.z+=0.1*ddz/dist;
+           if(dist>0.1) {
+             //TODO this is going to create some weird behavior through nest walls. 
+             // We should ideally check if the target is reachable before setting it,
+             // and if not maybe find a nearby reachable tile to move towards instead?
+             let speed = PLAYER_SPEED * delta;
+             player.x += speed * ddx/dist;
+             player.y += speed * ddy/dist;
+             player.z += speed * ddz/dist;
          }
          else {
           col.playerTarget=null;
@@ -651,7 +665,10 @@ function update(){
            if(len<0.1){ 
             ant.x=next.x+0.5; ant.y=next.y+0.5; ant.z=next.z+0.5; ant.pathIndex++; }
            else{ 
-            ant.x+=0.04*dx/len; ant.y+=0.04*dy/len; ant.z+=0.04*dz/len;
+            let speed = ANT_SPEED * delta;
+            ant.x += speed * dx/len;
+            ant.y += speed * dy/len;
+            ant.z += speed * dz/len;
            }
          } else { ant.path=null; }
 
@@ -705,7 +722,11 @@ function update(){
            let dx=next.x+0.5 - ant.x, dy=next.y+0.5 - ant.y, dz=next.z+0.5 - ant.z;
            let len=Math.sqrt(dx*dx+dy*dy+dz*dz);
            if(len<0.1){ ant.x=next.x+0.5; ant.y=next.y+0.5; ant.z=next.z+0.5; ant.pathIndex++; }
-           else{ ant.x+=0.04*dx/len; ant.y+=0.04*dy/len; ant.z+=0.04*dz/len;
+           else{
+             let speed = ANT_SPEED * delta;
+             ant.x += speed * dx/len;
+             ant.y += speed * dy/len;
+             ant.z += speed * dz/len;
            }
          } else { ant.path=null; }
 
@@ -756,24 +777,27 @@ function update(){
 		}
 	}
     if(s.path && s.pathIndex<s.path.length){
-	    let next = s.path[s.pathIndex];
-		if (next.y < TILE_OPEN_SPACE || SPIDER_CAN_GO_BELOW) {
-		
-			let dx=next.x+0.5 - s.x, dy=next.y+0.5 - s.y, dz=next.z+0.5 - s.z;
-			let len=Math.sqrt(dx*dx+dy*dy+dz*dz);
-			if(len < 0.1) { 
-				s.x = next.x+0.5;
-				s.y = next.y+0.5;
-				s.z = next.z+0.5;
-				s.pathIndex++;
-			}
-			else{ 
-				s.x+=0.02*dx/len; s.y+=0.02*dy/len; s.z+=0.02*dz/len;
-			
-			}
-		}
-		
-	}
+      let next = s.path[s.pathIndex];
+      if (next.y < TILE_OPEN_SPACE || SPIDER_CAN_GO_BELOW) {
+        
+        let dx=next.x+0.5 - s.x, dy=next.y+0.5 - s.y, dz=next.z+0.5 - s.z;
+        let len=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if(len < 0.1) { 
+          s.x = next.x+0.5;
+          s.y = next.y+0.5;
+          s.z = next.z+0.5;
+          s.pathIndex++;
+        }
+        else{ 
+          let speed = SPIDER_SPEED * delta;
+          s.x += speed * dx/len;
+          s.y += speed * dy/len;
+          s.z += speed * dz/len;
+        }
+
+      }
+        
+    }
 	else { 
 		s.path=null;
 		s.target=null;
@@ -1321,8 +1345,14 @@ class MinHeap {
   isEmpty() { return this.items.length === 0; }
 }
 
-function gameLoop() {
-  update();         // move ants, spawn eggs, AI
+// track the last timestamp so we can compute a delta
+let _lastTimestamp = performance.now();
+function gameLoop(timestamp) {
+  // rAF passes a high-resolution timestamp
+  let delta = (timestamp - _lastTimestamp) / 1000;
+  _lastTimestamp = timestamp;
+
+  update(delta);         // move ants, spawn eggs, AI
   drawBackground(bgCtx); // redraw background with camera offset
   drawForeground(fgCtx); // redraw moving things
   if(showDebugPaths) drawDebug(dbgCtx);
@@ -1330,7 +1360,8 @@ function gameLoop() {
 }
 
 drawBackground(bgCtx);
-gameLoop();
+// start the loop, pass initial timestamp so dt is valid
+requestAnimationFrame(gameLoop);
 
 });
 </script>
