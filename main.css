@@ -1,0 +1,204 @@
+  body {
+  margin: 0;
+  background: #333;
+  color: #fff;
+  font-family: sans-serif;
+  overflow: hidden; /* prevent scrollbars */
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+  display: block;
+}
+h3 { text-align:center; }
+
+#optionsPanel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: #222;
+  border: 2px solid #555;
+  border-radius: 5px;
+  padding: 0;
+  z-index: 1000;
+  box-shadow: 0 0 10px rgba(0,0,0,0.8);
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+}
+
+#controlPanel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: #222;
+  border: 2px solid #555;
+  border-radius: 5px;
+  padding: 10px;
+  z-index: 1000;
+  box-shadow: 0 0 10px rgba(0,0,0,0.8);
+  font-family: monospace;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  width: 45px;
+  min-height: fit-content;
+}
+
+#controlPanel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: #222;
+  border: 2px solid #555;
+  border-radius: 5px;
+  padding: 5px;
+  z-index: 1000;
+  box-shadow: 0 0 10px rgba(0,0,0,0.8);
+  font-family: monospace;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 64px;
+  min-height: fit-content;
+}
+
+#controlPanel button {
+  padding: 0;
+  aspect-ratio: 1;
+  background: #555;
+  border: 1px solid #888;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  width: 30px;
+}
+
+#controlPanel button:hover {
+  background: #666;
+}
+
+#controlPanel button:active {
+  background: #444;
+}
+
+#optionsPanel {
+  position: fixed;
+  top: 180px;
+  left: 10px;
+  background: #222;
+  border: 2px solid #555;
+  border-radius: 5px;
+  padding: 0;
+  z-index: 1000;
+  box-shadow: 0 0 10px rgba(0,0,0,0.8);
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+}
+
+#optionsPanel.expanded {
+  width: 300px;
+  transition: width 0.3s ease;
+}
+
+#panelHeader {
+  background: #444;
+  padding: 0px 0px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #555;
+  white-space: nowrap;
+}
+
+#panelHeader:hover {
+  background: #555;
+}
+
+#panelToggle {
+  font-weight: bold;
+  color: #88ff88;
+  font-size: 14px;
+}
+
+#panelContent {
+  padding: 0px 0px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  background: #2a2a2a;
+}
+
+#optionsPanel.expanded #panelContent {
+  display: flex;
+}
+
+#optionsPanel.expanded #panelContent {
+  display: flex;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.option-group label {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: bold;
+}
+
+.option-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 5px;
+  cursor: pointer;
+}
+
+.option-group input[type="range"],
+.option-group input[type="number"] {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 5px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.option-group input[type="range"] {
+  cursor: pointer;
+}
+
+.option-value {
+  font-size: 11px;
+  color: #88ff88;
+  margin-top: 2px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: #ccc;
+}
+
+
+#viewToggle:hover {
+  background: #666;
+}
