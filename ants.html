@@ -675,9 +675,14 @@ function update(delta){
             ant.x=next.x+0.5; ant.y=next.y+0.5; ant.z=next.z+0.5; ant.pathIndex++; }
            else{ 
             let speed = ANT_SPEED * delta;
-            ant.x += speed * dx/len;
-            ant.y += speed * dy/len;
-            ant.z += speed * dz/len;
+            let nextX = ant.x + speed * dx/len;
+            let nextY = ant.y + speed * dy/len;
+            let nextZ = ant.z + speed * dz/len;
+            if(!isMoveOutsideWorld(nextX, nextY, nextZ)) {
+              ant.x = nextX;
+              ant.y = nextY;
+              ant.z = nextZ;
+            }
            }
          } else { ant.path=null; }
 
@@ -733,9 +738,14 @@ function update(delta){
            if(len<0.1){ ant.x=next.x+0.5; ant.y=next.y+0.5; ant.z=next.z+0.5; ant.pathIndex++; }
            else{
              let speed = ANT_SPEED * delta;
-             ant.x += speed * dx/len;
-             ant.y += speed * dy/len;
-             ant.z += speed * dz/len;
+             let nextX = ant.x + speed * dx/len;
+             let nextY = ant.y + speed * dy/len;
+             let nextZ = ant.z + speed * dz/len;
+             if(!isMoveOutsideWorld(nextX, nextY, nextZ)) {
+               ant.x = nextX;
+               ant.y = nextY;
+               ant.z = nextZ;
+             }
            }
          } else { ant.path=null; }
 
@@ -802,9 +812,14 @@ function update(delta){
         }
         else{ 
           let speed = SPIDER_SPEED * delta;
-          s.x += speed * dx/len;
-          s.y += speed * dy/len;
-          s.z += speed * dz/len;
+          let nextX = s.x + speed * dx/len;
+          let nextY = s.y + speed * dy/len;
+          let nextZ = s.z + speed * dz/len;
+          if(!isMoveOutsideWorld(nextX, nextY, nextZ)) {
+            s.x = nextX;
+            s.y = nextY;
+            s.z = nextZ;
+          }
         }
 
       }
@@ -859,6 +874,12 @@ function isValidBlock(x, y, z) {
         && z >= 0 && z < WORLD_Z_MAX;
 }
 
+function isMoveOutsideWorld(x, y, z) {
+  return x < 0 || x > WORLD_X_MAX
+      || y < 0 || y > WORLD_Y_MAX
+      || z < 0 || z > WORLD_Z_MAX;
+}
+
 // accessor functions to keep callers from indexing the raw array and make
 // bounds-checking/coordinate normalization easier.
 function getBlockAt(x, y, z) {
@@ -893,6 +914,15 @@ function getViewMap() {
 //   return nestMaps[colonyIdx];
 // }
 
+
+
+  function worldToScreen(wx, wy, wz) {
+    if(currentView === 'nest') {
+      return { sx: wx * TILE_SIZE, sy: wz * TILE_SIZE };
+    }
+    return { sx: wy * TILE_SIZE, sy: wx * TILE_SIZE };
+  }
+
 function drawBackground(ctx) {
    // background terrain is now emitted in the foreground render queue
    // so everything shares one z-index sort pipeline.
@@ -908,13 +938,6 @@ function drawForeground(ctx) {
 
   const renderQueue = [];
   let renderOrder = 0;
-
-  function worldToScreen(wx, wy, wz) {
-    if(currentView === 'nest') {
-      return { sx: wx * TILE_SIZE, sy: wz * TILE_SIZE };
-    }
-    return { sx: wy * TILE_SIZE, sy: wx * TILE_SIZE };
-  }
 
   // zIndex for draw ordering in both views.
   // base depth comes from projected screen row, then layer bias handles overlaps.
@@ -1064,9 +1087,7 @@ function drawDebug(ctx) {
    ctx.save();
    
    // Apply camera offset
-   if(currentView === 'nest') {
-     ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
-   }
+   ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
 
    let dx = 0;
    let dy = 0;
@@ -1078,8 +1099,9 @@ function drawDebug(ctx) {
             //ctx.fillStyle = fadeCssColor("yellow", Math.min(1.0 - (w.pathIndex / w.path.length), 0.3));
             ctx.fillStyle = hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
             w.path.forEach(next=>{
-               dx = currentView === 'nest' ? next.x * TILE_SIZE : next.y * TILE_SIZE;
-               dy = currentView === 'nest' ? next.z * TILE_SIZE : next.x * TILE_SIZE;
+              let transformLoc = worldToScreen(next.x, next.y, next.z);
+               dx = transformLoc.sx;
+               dy = transformLoc.sy;
                ctx.fillRect(dx,dy,TILE_SIZE,TILE_SIZE);
             });
          }
