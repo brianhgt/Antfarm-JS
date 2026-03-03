@@ -160,6 +160,8 @@ let foodSpawnInterval = FOOD_SPAWN_INTERVAL;
 let currentView = 'nest'; // 'nest' or 'overworld' or 'both'
 let currentNestIndex = 0; // Which nest section we're viewing
 
+let NEST_MAX_DEPTH = 24; // maximum depth of the nest (z axis)
+
 // Camera variables
 let camera1X = 0;
 let camera1Y = 0;
@@ -269,27 +271,32 @@ jq('#viewToggle').on('click', function() {
   }
 });
 
-// Mouse wheel scrolling for nest view camera
+// Mouse wheel scrolling for camera
 document.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const screenWidthInBlocks = canvasWidth / TILE_SIZE;
+  const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+  
+  // Increased sensitivity for better control
+  const scrollSensitivity = 0.1;
+  
+  if(e.deltaX !== 0) {
+    camera1X += e.deltaX * scrollSensitivity;
+  }
+  if(e.deltaY !== 0) {
+    camera1Y += e.deltaY * scrollSensitivity;
+  }
+
   if(currentView === 'nest') {
-    e.preventDefault();
-    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
-    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
-    
-    // Increased sensitivity for better control across 80-block nest
-    const scrollSensitivity = 0.1;
-    
-    if(e.deltaX !== 0) {
-      camera1X += e.deltaX * scrollSensitivity;
-    }
-    if(e.deltaY !== 0) {
-      camera1Y += e.deltaY * scrollSensitivity;
-    }
-    
-    // Clamp camera to valid range (nest X is ~80 wide, height Z is ~40)
+    // nest view: camera1X pans world X, camera1Y pans world Z
     const maxcamera1X = Math.max(0, WORLD_X_MAX - screenWidthInBlocks);
     const maxcamera1Y = Math.max(0, WORLD_Z_MAX - screenHeightInBlocks);
-    
+    camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
+    camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
+  } else {
+    // overworld view: screen X maps to world Y, screen Y maps to world X
+    const maxcamera1X = Math.max(0, WORLD_Y_MAX - screenWidthInBlocks);
+    const maxcamera1Y = Math.max(0, WORLD_X_MAX - screenHeightInBlocks);
     camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
     camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
   }
@@ -324,7 +331,7 @@ colonies.forEach((col, colIdx)=>{
     //subtract 2 for egg spawn distance
     nx = 2 + Math.floor(Math.random()*(WORLD_X_MAX - 4));
     ny = DEFAULT_NEST_Y; //nests should start at opposite sides of the volume
-    nz = 2 + 1 + Math.floor(Math.random()*(WORLD_Z_MAX - 4));
+    nz = 2 + 1 + Math.min(Math.floor(Math.random()*(WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
 
     // directly modify the 3D storage (now x,y,z order)
     setBlock(nx, ny, nz, TILE.NEST);
@@ -928,30 +935,8 @@ function drawForeground(ctx) {
   let dy = 0;
   
   // Apply camera offset
-  if(currentView === 'nest') {
-    ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
-  }
+  ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
   
-  if(currentView === 'overworld') {
-    // Draw overworld view - show colony locations and food
-    ctx.fillStyle="green";
-    foods.forEach(food=>{
-      if (food) {
-        dx = currentView === 'nest' ? food.x * TILE_SIZE : food.y * TILE_SIZE;
-        dy = currentView === 'nest' ? food.z * TILE_SIZE : food.x * TILE_SIZE;
-        ctx.fillRect(dx+5,dy+5,TILE_SIZE-10,TILE_SIZE-10);
-      }
-    });
-    
-    // Draw colonies as markers in overworld
-    colonies.forEach((col,idx)=>{
-      ctx.fillStyle = col.color;
-      ctx.beginPath();
-      dx = currentView === 'nest' ? col.player.x * TILE_SIZE : col.player.y * TILE_SIZE;
-      dy = currentView === 'nest' ? col.player.z * TILE_SIZE : col.player.x * TILE_SIZE;
-      ctx.arc(dx,dy,TILE_SIZE/2,0,Math.PI*2);ctx.fill();
-    });
-  } else {
     // Draw nest view
     ctx.fillStyle="green";
     foods.forEach(food=>{
@@ -1020,7 +1005,7 @@ function drawForeground(ctx) {
       });
     });
     spiders.forEach(s=>{
-      if(s.timer != -1) {
+      if(s.timer > 0) {
         ctx.fillStyle="white";
         dx = currentView === 'nest' ? s.x * TILE_SIZE : s.y * TILE_SIZE;
         dy = currentView === 'nest' ? s.z * TILE_SIZE : s.x * TILE_SIZE;
@@ -1038,7 +1023,6 @@ function drawForeground(ctx) {
       dy = currentView === 'nest' ? sk.z * TILE_SIZE : sk.x * TILE_SIZE;
       ctx.fillText("💀",dx,dy);
      }
-  }
   
   ctx.restore();
 }
