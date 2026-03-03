@@ -148,7 +148,7 @@ const WORLD_Z_MAX = 40;
 let foodSpawnTimer=FOOD_SPAWN_INTERVAL;
 const FOOD_GROUP_SIZE=5;
 
-const DEFAULT_NEST_Y = 5;
+const DEFAULT_NEST_Y = 40;
 const OVERWORLD_Y_RATIO = 20; //Number of tiles in the overworld to the next nest section
 
 // Mutable configuration variables
@@ -326,13 +326,14 @@ for(let i = 0; i < numSpiders; i++) {
 }
 const skulls=[];
 
+//Initialize nests
 colonies.forEach((col, colIdx)=>{
   let nx=0, ny=0, nz=0;
   //let nestMap = nestMaps[colIdx];
   //do{
     //subtract 2 for egg spawn distance
-    nx = 2 + Math.floor(Math.random()*(WORLD_X_MAX - 4));
-    ny = DEFAULT_NEST_Y; //nests should start at opposite sides of the volume
+    nx = 4 + Math.floor(Math.random()*(WORLD_X_MAX - 4));
+    ny = DEFAULT_NEST_Y; //TODO nests should start at opposite sides of the volume
     nz = 2 + 1 + Math.min(Math.floor(Math.random()*(WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
 
     // directly modify the 3D storage (now x,y,z order)
