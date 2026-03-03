@@ -255,7 +255,7 @@ for(let x = 0; x < WORLD_X_MAX; x++){
 let foods = new Map();
 for(let i=0;i<foodSpawnAmount;i++){
   let fx=Math.floor(Math.random()*WORLD_X_MAX);
-  let fy=DEFAULT_NEST_Y != -1 ? DEFAULT_NEST_Y : Math.floor(Math.random()*WORLD_Y_MAX); //TODO
+  let fy= Math.floor(Math.random()*WORLD_Y_MAX); //TODO
   let fz= 0; //surface level
   foods.set(get3dHash(fx, fy, fz), {x:fx,y:fy,z:fz,carry:false});
 }
@@ -267,6 +267,8 @@ jq('#viewToggle').on('click', function() {
     jq(this).text('🏛️');
   } else {
     currentView = 'nest';
+    camera1Y = 0; // reset vertical camera offset when switching back to nest view
+    camera1X = 0; // reset horizontal camera offset when switching back to nest view
     jq(this).text('📡');
   }
 });
@@ -447,7 +449,7 @@ function update(delta){
       let fx = Math.floor(Math.random() * WORLD_X_MAX);
       //let fy = Math.floor(Math.random() * WORLD_Y_MAX);
       //TODO spawn along y=0 line to make it more likely ants will find the food, for now
-      let fy = DEFAULT_NEST_Y != -1 ? DEFAULT_NEST_Y : Math.floor(Math.random() * WORLD_Y_MAX); //TODO spawn along y=0 line to make it more likely ants will find the food, for now
+      let fy = Math.floor(Math.random() * WORLD_Y_MAX); //TODO spawn along y=0 line to make it more likely ants will find the food, for now
       let fz = 0; // spawn on surface
       foods.set(get3dHash(fx, fy, fz), {x:fx,y:fy,z:fz,carry:false});
     }
@@ -769,7 +771,10 @@ function update(delta){
     if(nearest && nearest.dist < 5){
 	  //chase
       if(!s.path || s.target.x!=Math.floor(nearest.ant.x)||s.target.y!=Math.floor(nearest.ant.y)||s.target.z!=Math.floor(nearest.ant.z)){
-        s.path = findPath(Math.floor(s.x),Math.floor(s.y),Math.floor(s.z),Math.floor(nearest.ant.x),Math.floor(nearest.ant.y),Math.floor(nearest.ant.z));
+        s.path = findPath(
+          Math.floor(s.x), Math.floor(s.y), Math.floor(s.z),
+          Math.floor(nearest.ant.x), Math.floor(nearest.ant.y), Math.floor(nearest.ant.z)
+        );
         s.pathIndex = 0;
 		  s.target = {x:Math.floor(nearest.ant.x), y:Math.floor(nearest.ant.y), z:Math.floor(nearest.ant.z)};
       }
@@ -779,13 +784,13 @@ function update(delta){
 			let wander=getRandomNearbyEmptyTile(Math.floor(s.x),Math.floor(s.y),Math.floor(s.z),5);
 			if(wander){
 			  s.target=wander;
-			  s.path=findPath(Math.floor(s.x),Math.floor(s.y),Math.floor(s.z),wander.x,wander.y,wander.z); s.pathIndex=0;
+        s.path=findPath(Math.floor(s.x),Math.floor(s.y),Math.floor(s.z),wander.x,wander.y,wander.z); s.pathIndex=0;
 			}
 		}
 	}
     if(s.path && s.pathIndex<s.path.length){
       let next = s.path[s.pathIndex];
-      if (next.y < TILE_OPEN_SPACE || SPIDER_CAN_GO_BELOW) {
+      if (next.z < TILE_OPEN_SPACE || SPIDER_CAN_GO_BELOW) {
         
         let dx=next.x+0.5 - s.x, dy=next.y+0.5 - s.y, dz=next.z+0.5 - s.z;
         let len=Math.sqrt(dx*dx+dy*dy+dz*dz);
@@ -889,141 +894,168 @@ function getViewMap() {
 // }
 
 function drawBackground(ctx) {
+   // background terrain is now emitted in the foreground render queue
+   // so everything shares one z-index sort pipeline.
    ctx.clearRect(0,0,canvasWidth,canvasHeight);
-   ctx.save();
-   
-   // Apply camera offset
-   ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
-   
-   
-   ctx.fillStyle="#5B3A1E";
-   if(currentView === 'overworld') {
-     // draw surface layer of the overworld
-     ctx.fillStyle="#5B3A1E";
-     for(let y=0; y < WORLD_Y_MAX; y++){
-       for(let x=0; x < WORLD_X_MAX; x++){
-         if(getBlockAt(x, y, 1) === TILE.DIRT) {
-           //ctx.fillStyle = "#5B3A1E"; //time consuming to set fillStyle every block
-           ctx.fillRect(y * TILE_SIZE,x * TILE_SIZE,  TILE_SIZE, TILE_SIZE);
-         }
-       }
-     }
-   } else {
-     // nest view: get a 2D slice (x vs z) for the current nest
-     //const slice = getViewMap();
-     const screenWidthInBlocks = canvasWidth / TILE_SIZE;
-     const screenHeightInBlocks = canvasHeight / TILE_SIZE;
-     ctx.fillStyle="#5B3A1E";
-     for(let z = Math.max(0, Math.floor(camera1Y)); z < Math.min(WORLD_Z_MAX, Math.ceil(camera1Y + screenHeightInBlocks)); z++){
-       for(let x = Math.max(0, Math.floor(camera1X)); x < Math.min(WORLD_X_MAX, Math.ceil(camera1X + screenWidthInBlocks)); x++){
-         if(getBlockAt(x, DEFAULT_NEST_Y, z) === TILE.DIRT) {
-           //ctx.fillStyle = "#5B3A1E"; //time consuming to set fillStyle every block
-           ctx.fillRect(x * TILE_SIZE, z * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-         }
-       }
-     }
-   }
-   
-   ctx.restore();
 }
 
 function drawForeground(ctx) {
   ctx.clearRect(0,0,canvasWidth,canvasHeight);
   ctx.save();
 
-  let dx = 0;
-  let dy = 0;
-  
   // Apply camera offset
   ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
-  
-    // Draw nest view
-    ctx.fillStyle="green";
-    foods.forEach(food=>{
-      if (food) {
-        dx = currentView === 'nest' ? food.x * TILE_SIZE : food.y * TILE_SIZE;
-        dy = currentView === 'nest' ? food.z * TILE_SIZE : food.x * TILE_SIZE;
-        ctx.fillRect(dx+5,dy+5,TILE_SIZE-10,TILE_SIZE-10);
+
+  const renderQueue = [];
+  let renderOrder = 0;
+
+  function worldToScreen(wx, wy, wz) {
+    if(currentView === 'nest') {
+      return { sx: wx * TILE_SIZE, sy: wz * TILE_SIZE };
+    }
+    return { sx: wy * TILE_SIZE, sy: wx * TILE_SIZE };
+  }
+
+  // zIndex for draw ordering in both views.
+  // base depth comes from projected screen row, then layer bias handles overlaps.
+  function getZIndex(wx, wy, wz, layerBias, depthOffset = 0) {
+    if(currentView === 'nest') {
+      const projectedRow = wz + depthOffset;
+      return projectedRow * 100 + layerBias;
+    }
+
+    // overworld: screen Y (world X) is primary depth, but world Z (vertical depth)
+    // must also participate so underground entities render beneath surface dirt.
+    const projectedRow = wx + depthOffset;
+    return projectedRow * 10000 - wz * 1000 + layerBias;
+  }
+
+  function queueRect(wx, wy, wz, color, offsetX, offsetY, width, height, layerBias, depthOffset = 0) {
+    const p = worldToScreen(wx, wy, wz);
+    renderQueue.push({
+      zIndex: getZIndex(wx, wy, wz, layerBias, depthOffset),
+      order: renderOrder++,
+      draw: () => {
+        ctx.fillStyle = color;
+        ctx.fillRect(p.sx + offsetX, p.sy + offsetY, width, height);
       }
     });
-    colonies.forEach(col=>{
-      dx = currentView === 'nest' ? col.nest.x * TILE_SIZE : col.nest.y * TILE_SIZE;
-      dy = currentView === 'nest' ? col.nest.z * TILE_SIZE : col.nest.x * TILE_SIZE;
-      ctx.fillStyle = "gray",ctx.fillRect(dx,dy,TILE_SIZE,TILE_SIZE);
-      dx = currentView === 'nest' ? col.nest.sX * TILE_SIZE : col.nest.sY * TILE_SIZE;
-      dy = currentView === 'nest' ? col.nest.sZ * TILE_SIZE : col.nest.sX * TILE_SIZE;
-      ctx.fillStyle = "purple",ctx.fillRect(dx,dy,TILE_SIZE,TILE_SIZE);
-      
-      ctx.fillStyle=col.color;
-      
-      //draw player
-      ctx.beginPath();
-      dx = currentView === 'nest' ? col.player.x * TILE_SIZE : col.player.y * TILE_SIZE;
-      dy = currentView === 'nest' ? col.player.z * TILE_SIZE : col.player.x * TILE_SIZE;
-      ctx.arc(dx,dy,TILE_SIZE/2-2,0,Math.PI*2);ctx.fill();
-      
-      //draw workers
-      col.workers.forEach(w=>{
+  }
+
+  function queueCircle(wx, wy, wz, color, radius, layerBias, depthOffset = 0) {
+    const p = worldToScreen(wx, wy, wz);
+    renderQueue.push({
+      zIndex: getZIndex(wx, wy, wz, layerBias, depthOffset),
+      order: renderOrder++,
+      draw: () => {
+        ctx.fillStyle = color;
         ctx.beginPath();
-        dx = currentView === 'nest' ? w.x * TILE_SIZE : w.y * TILE_SIZE;
-        dy = currentView === 'nest' ? w.z * TILE_SIZE : w.x * TILE_SIZE;
-        ctx.arc(dx,dy,TILE_SIZE/2-3,0,Math.PI*2);ctx.fill();
-        if(w.carrying){
-          ctx.fillStyle=w.carrying==TILE.FOOD?"green":"white";
-          dx = currentView === 'nest' ? w.carrying.x * TILE_SIZE : w.carrying.y * TILE_SIZE;
-          dy = currentView === 'nest' ? w.carrying.z * TILE_SIZE : w.carrying.x * TILE_SIZE;
-          ctx.fillRect(dx+4,dy+4,6,6);
-          ctx.fillStyle=col.color;
-        }
-      });
-      col.soldiers.forEach(ant=>{
-        ctx.beginPath();
-        dx = currentView === 'nest' ? ant.x * TILE_SIZE : ant.y * TILE_SIZE;
-        dy = currentView === 'nest' ? ant.z * TILE_SIZE : ant.x * TILE_SIZE;
-        ctx.arc(dx,dy,TILE_SIZE * 0.45,0,Math.PI*2);ctx.fill();
-      });
-      if(col.player.carrying){
-        ctx.fillStyle=col.player.carrying==TILE.FOOD?"green":"white";
-        dx = currentView === 'nest' ? col.player.carrying.x * TILE_SIZE : col.player.carrying.y * TILE_SIZE;
-        dy = currentView === 'nest' ? col.player.carrying.z * TILE_SIZE : col.player.carrying.x * TILE_SIZE;
-        ctx.fillRect(dx+4,dy+4,6,6);
-      }
-      ctx.fillStyle = "white";
-      col.eggs.forEach((egg, key)=>{
-        if (egg && egg.x !== undefined && egg.z !== undefined) {
-          if(egg.carry) {
-            dx = currentView === 'nest' ? egg.x * TILE_SIZE : egg.y * TILE_SIZE;
-            dy = currentView === 'nest' ? egg.z * TILE_SIZE : egg.x * TILE_SIZE;
-            ctx.fillRect(dx+4,dy+4,6,6);
-          }
-          else {
-            dx = currentView === 'nest' ? egg.x * TILE_SIZE : egg.y * TILE_SIZE;
-            dy = currentView === 'nest' ? egg.z * TILE_SIZE : egg.x * TILE_SIZE;
-            ctx.fillRect(dx+5,dy+5,TILE_SIZE-10,TILE_SIZE-10);
-          }
-        }
-      });
-    });
-    spiders.forEach(s=>{
-      if(s.timer > 0) {
-        ctx.fillStyle="white";
-        dx = currentView === 'nest' ? s.x * TILE_SIZE : s.y * TILE_SIZE;
-        dy = currentView === 'nest' ? s.z * TILE_SIZE : s.x * TILE_SIZE;
-        ctx.fillRect(dx,dy,TILE_SIZE,TILE_SIZE);
-      }
-      else {
-        ctx.fillStyle="darkblue";
-        dx = currentView === 'nest' ? s.x * TILE_SIZE : s.y * TILE_SIZE;
-        dy = currentView === 'nest' ? s.z * TILE_SIZE : s.x * TILE_SIZE;
-        ctx.fillRect(dx,dy,TILE_SIZE,TILE_SIZE);
+        ctx.arc(p.sx, p.sy, radius, 0, Math.PI * 2);
+        ctx.fill();
       }
     });
-    for(let sk of skulls){
-      dx = currentView === 'nest' ? sk.x * TILE_SIZE : sk.y * TILE_SIZE;
-      dy = currentView === 'nest' ? sk.z * TILE_SIZE : sk.x * TILE_SIZE;
-      ctx.fillText("💀",dx,dy);
-     }
-  
+  }
+
+  function queueText(wx, wy, wz, text, color, layerBias, depthOffset = 0) {
+    const p = worldToScreen(wx, wy, wz);
+    renderQueue.push({
+      zIndex: getZIndex(wx, wy, wz, layerBias, depthOffset),
+      order: renderOrder++,
+      draw: () => {
+        ctx.fillStyle = color;
+        ctx.fillText(text, p.sx, p.sy);
+      }
+    });
+  }
+
+  // Queue background dirt tiles first so they participate in z-ordering.
+  if(currentView === 'overworld') {
+    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
+    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+    const minWorldY = Math.max(0, Math.floor(camera1X));
+    const maxWorldY = Math.min(WORLD_Y_MAX, Math.ceil(camera1X + screenWidthInBlocks));
+    const minWorldX = Math.max(0, Math.floor(camera1Y));
+    const maxWorldX = Math.min(WORLD_X_MAX, Math.ceil(camera1Y + screenHeightInBlocks));
+
+    for(let y = minWorldY; y < maxWorldY; y++) {
+      for(let x = minWorldX; x < maxWorldX; x++) {
+        if(getBlockAt(x, y, 1) === TILE.DIRT) {
+          queueRect(x, y, 1, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+        }
+      }
+    }
+  } else {
+    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
+    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+    const minZ = Math.max(0, Math.floor(camera1Y));
+    const maxZ = Math.min(WORLD_Z_MAX, Math.ceil(camera1Y + screenHeightInBlocks));
+    const minX = Math.max(0, Math.floor(camera1X));
+    const maxX = Math.min(WORLD_X_MAX, Math.ceil(camera1X + screenWidthInBlocks));
+
+    for(let z = minZ; z < maxZ; z++) {
+      for(let x = minX; x < maxX; x++) {
+        if(getBlockAt(x, DEFAULT_NEST_Y, z) === TILE.DIRT) {
+          queueRect(x, DEFAULT_NEST_Y, z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+        }
+      }
+    }
+  }
+
+  foods.forEach(food => {
+    if(food) {
+      queueRect(food.x, food.y, food.z, "green", 5, 5, TILE_SIZE-10, TILE_SIZE-10, 20);
+    }
+  });
+
+  colonies.forEach(col => {
+    //draw nests
+    queueRect(col.nest.x, col.nest.y, col.nest.z, "gray", 0, 0, TILE_SIZE, TILE_SIZE, 10);
+    queueRect(col.nest.sX, col.nest.sY, col.nest.sZ, "purple", 0, 0, TILE_SIZE, TILE_SIZE, 11);
+
+    //draw player
+    queueCircle(col.player.x, col.player.y, col.player.z, col.color, TILE_SIZE/2-2, 50, 0.45);
+
+    col.workers.forEach(w => {
+      queueCircle(w.x, w.y, w.z, col.color, TILE_SIZE/2-3, 40, 0.45);
+      if(w.carrying) {
+        queueRect(w.x, w.y, w.z, w.carrying == TILE.FOOD ? "green" : "white", 4, 4, 6, 6, 70, 0.45);
+      }
+    });
+
+    col.soldiers.forEach(ant => {
+      queueCircle(ant.x, ant.y, ant.z, col.color, TILE_SIZE * 0.45, 45, 0.45);
+    });
+
+    if(col.player.carrying) {
+      queueRect(col.player.x, col.player.y, col.player.z, col.player.carrying == TILE.FOOD ? "green" : "white", 4, 4, 6, 6, 80, 0.45);
+    }
+
+    col.eggs.forEach(egg => {
+      if(egg && egg.x !== undefined && egg.z !== undefined) {
+        if(egg.carry) {
+          queueRect(egg.x, egg.y, egg.z, "white", 4, 4, 6, 6, 65, 0.45);
+        } else {
+          queueRect(egg.x, egg.y, egg.z, "white", 5, 5, TILE_SIZE-10, TILE_SIZE-10, 15, 0.45);
+        }
+      }
+    });
+  });
+
+  spiders.forEach(s => {
+    queueRect(s.x, s.y, s.z, s.timer > 0 ? "white" : "darkblue", 0, 0, TILE_SIZE, TILE_SIZE, 60, 0.45);
+  });
+
+  skulls.forEach(sk => {
+    queueText(sk.x, sk.y, sk.z, "💀", "white", 90, 0.45);
+  });
+
+  renderQueue.sort((a, b) => {
+    if(a.zIndex === b.zIndex) return a.order - b.order;
+    return a.zIndex - b.zIndex;
+  });
+
+  renderQueue.forEach(item => item.draw());
+
   ctx.restore();
 }
 
@@ -1066,8 +1098,9 @@ function clearDebug(ctx) {
 /* Library Functions */
 ///////////////////////
 let dirs = [
-  {x:1,y:0,z:0},{x:-1,y:0,z:0},{x:0,y:0,z:1},{x:0,y:0,z:-1},
-  {x:1,y:0,z:1},{x:1,y:0,z:-1},{x:-1,y:0,z:1},{x:-1,y:0,z:-1}
+  {x:1,y:0,z:0},{x:-1,y:0,z:0},{x:0,y:1,z:0},{x:0,y:-1,z:0},{x:0,y:0,z:1},{x:0,y:0,z:-1},
+  {x:1,y:0,z:1},{x:1,y:0,z:-1},{x:-1,y:0,z:1},{x:-1,y:0,z:-1},
+  {x:1,y:1,z:0},{x:1,y:-1,z:0},{x:-1,y:1,z:0},{x:-1,y:-1,z:0}
 ];
 
 // A* pathfinding
