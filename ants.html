@@ -166,6 +166,17 @@ let NEST_MAX_DEPTH = 24; // maximum depth of the nest (z axis)
 let camera1X = 0;
 let camera1Y = 0;
 
+const primaryViewport = {
+  id: 'primary',
+  inputCanvas: dbgCanvas,
+  get view() { return currentView; },
+  set view(value) { currentView = value; },
+  get cameraX() { return camera1X; },
+  set cameraX(value) { camera1X = value; },
+  get cameraY() { return camera1Y; },
+  set cameraY(value) { camera1Y = value; }
+};
+
 // Connect option panel controls
 jq('#showPathsCheck').on('change', function() {
   clearDebug(dbgCtx);
@@ -262,47 +273,110 @@ for(let i=0;i<foodSpawnAmount;i++){
 
 // Handle view toggle between nest and overworld
 jq('#viewToggle').on('click', function() {
-  if(currentView === 'nest') {
-    currentView = 'overworld';
+  if(primaryViewport.view === 'nest') {
+    primaryViewport.view = 'overworld';
     jq(this).text('🏛️');
   } else {
-    currentView = 'nest';
-    camera1Y = 0; // reset vertical camera offset when switching back to nest view
-    camera1X = 0; // reset horizontal camera offset when switching back to nest view
+    primaryViewport.view = 'nest';
+    primaryViewport.cameraY = 0; // reset vertical camera offset when switching back to nest view
+    primaryViewport.cameraX = 0; // reset horizontal camera offset when switching back to nest view
     jq(this).text('📡');
   }
 });
 
 // Mouse wheel scrolling for camera
-document.addEventListener('wheel', function(e) {
-  e.preventDefault();
+function clampCameraToViewBounds() {
   const screenWidthInBlocks = canvasWidth / TILE_SIZE;
   const screenHeightInBlocks = canvasHeight / TILE_SIZE;
-  
-  // Increased sensitivity for better control
-  const scrollSensitivity = 0.1;
-  
-  if(e.deltaX !== 0) {
-    camera1X += e.deltaX * scrollSensitivity;
-  }
-  if(e.deltaY !== 0) {
-    camera1Y += e.deltaY * scrollSensitivity;
-  }
 
-  if(currentView === 'nest') {
+  if(primaryViewport.view === 'nest') {
     // nest view: camera1X pans world X, camera1Y pans world Z
     const maxcamera1X = Math.max(0, WORLD_X_MAX - screenWidthInBlocks);
     const maxcamera1Y = Math.max(0, WORLD_Z_MAX - screenHeightInBlocks);
-    camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
-    camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
+    primaryViewport.cameraX = Math.max(0, Math.min(primaryViewport.cameraX, maxcamera1X));
+    primaryViewport.cameraY = Math.max(0, Math.min(primaryViewport.cameraY, maxcamera1Y));
   } else {
     // overworld view: screen X maps to world Y, screen Y maps to world X
     const maxcamera1X = Math.max(0, WORLD_Y_MAX - screenWidthInBlocks);
     const maxcamera1Y = Math.max(0, WORLD_X_MAX - screenHeightInBlocks);
-    camera1X = Math.max(0, Math.min(camera1X, maxcamera1X));
-    camera1Y = Math.max(0, Math.min(camera1Y, maxcamera1Y));
+    primaryViewport.cameraX = Math.max(0, Math.min(primaryViewport.cameraX, maxcamera1X));
+    primaryViewport.cameraY = Math.max(0, Math.min(primaryViewport.cameraY, maxcamera1Y));
   }
+}
+
+const inputCanvas = primaryViewport.inputCanvas;
+
+inputCanvas.addEventListener('wheel', function(e) {
+  e.preventDefault();
+
+  // Increased sensitivity for better control
+  const scrollSensitivity = 0.1;
+
+  if(e.deltaX !== 0) {
+    primaryViewport.cameraX += e.deltaX * scrollSensitivity;
+  }
+  if(e.deltaY !== 0) {
+    primaryViewport.cameraY += e.deltaY * scrollSensitivity;
+  }
+
+  clampCameraToViewBounds();
 }, { passive: false });
+
+let activePointerId = null;
+let pointerStartX = 0;
+let pointerStartY = 0;
+let lastPointerX = 0;
+let lastPointerY = 0;
+let pointerDragged = false;
+let suppressNextClick = false;
+
+inputCanvas.addEventListener('pointerdown', function(e) {
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  activePointerId = e.pointerId;
+  pointerStartX = e.clientX;
+  pointerStartY = e.clientY;
+  lastPointerX = e.clientX;
+  lastPointerY = e.clientY;
+  pointerDragged = false;
+  if(inputCanvas.setPointerCapture) {
+    inputCanvas.setPointerCapture(e.pointerId);
+  }
+  e.preventDefault();
+});
+
+inputCanvas.addEventListener('pointermove', function(e) {
+  if(activePointerId !== e.pointerId) return;
+
+  const deltaX = e.clientX - lastPointerX;
+  const deltaY = e.clientY - lastPointerY;
+
+  if(Math.abs(e.clientX - pointerStartX) + Math.abs(e.clientY - pointerStartY) > 3) {
+    pointerDragged = true;
+  }
+
+  lastPointerX = e.clientX;
+  lastPointerY = e.clientY;
+
+  const panSensitivity = (e.pointerType === 'mouse') ? 0.08 : 0.06;
+  // Invert deltaX for more intuitive panning (dragging right moves view right)
+  primaryViewport.cameraX -= deltaX * panSensitivity;
+  primaryViewport.cameraY -= deltaY * panSensitivity;
+  clampCameraToViewBounds();
+  e.preventDefault();
+});
+
+inputCanvas.addEventListener('pointerup', function(e) {
+  if(activePointerId !== e.pointerId) return;
+  suppressNextClick = pointerDragged;
+  activePointerId = null;
+  pointerDragged = false;
+});
+
+inputCanvas.addEventListener('pointercancel', function(e) {
+  if(activePointerId !== e.pointerId) return;
+  activePointerId = null;
+  pointerDragged = false;
+});
 
 let spiderScore=0;
 const colonies=[
@@ -388,28 +462,26 @@ colonies.forEach((col, colIdx)=>{
 });
 
 // click-to-move
-document.addEventListener('click', e=>{
-  // Don't process clicks on the control or options panel
-  if(document.getElementById('optionsPanel').contains(e.target) || 
-     document.getElementById('controlPanel').contains(e.target) ||
-     e.target.tagName === 'BUTTON') {
+inputCanvas.addEventListener('click', e=>{
+  if(suppressNextClick) {
+    suppressNextClick = false;
     return;
   }
-  
-  const rect=fgCanvas.getBoundingClientRect();
+
+  const rect=inputCanvas.getBoundingClientRect();
   let mx=0;
   let my=0;
   let mz=0;
   
   // Apply camera offset in nest view
-  if(currentView === 'nest') {
+  if(primaryViewport.view === 'nest') {
     mx=(e.clientX-rect.left)/TILE_SIZE;
     my=DEFAULT_NEST_Y; //TODO y is fixed for now
     mz=(e.clientY-rect.top)/TILE_SIZE;
 
-    mx += camera1X;
+    mx += primaryViewport.cameraX;
     my += 0;
-    mz += camera1Y;
+    mz += primaryViewport.cameraY;
     // Check bounds against nest size
     if(mx >= 0 && mx < WORLD_X_MAX
        && my >= 0 && my < WORLD_Y_MAX
@@ -425,8 +497,8 @@ document.addEventListener('click', e=>{
     my=(e.clientX-rect.left)/TILE_SIZE;
     mz= 0; //surface level only for overworld clicks for now
 
-    mx += camera1Y;
-    my += camera1X;
+    mx += primaryViewport.cameraY;
+    my += primaryViewport.cameraX;
     mz += 0;
     if(mx >= 0 && mx < WORLD_X_MAX
         && my >= 0 && my < WORLD_Y_MAX

@@ -13,6 +13,10 @@ canvas {
   image-rendering: pixelated;
   display: block;
 }
+
+#dbg {
+  touch-action: none;
+}
 h3 { text-align:center; }
 
 #optionsPanel {
