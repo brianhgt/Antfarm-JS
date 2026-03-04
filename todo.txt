@@ -1,0 +1,13 @@
+* buttons are in the way
+* use self contained panels
+* add a zoom in/out
+* add a mini-map
+* can't see the title anymore
+* pheromones
+* ants start at opposite sides
+* ants attack eachother
+* add solider ants back
+* some sort of way to view different y-slices
+* view tunnels with shading
+* farther away is smaller
+* 3D view
