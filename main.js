@@ -951,159 +951,172 @@ function drawBackground(ctx) {
 }
 
 function drawForeground(ctx) {
-  ctx.clearRect(0,0,canvasWidth,canvasHeight);
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
   ctx.save();
-
-  // Apply camera offset
   ctx.translate(-camera1X * TILE_SIZE, -camera1Y * TILE_SIZE);
 
   const renderQueue = [];
   let renderOrder = 0;
+  const visible = getVisibleBlocks();
+  const cullBuffer = 1;
+  const focusY = Math.floor((colonies[currentNestIndex]?.player?.y ?? colonies[0]?.player?.y) || 0);
+  const isNest = currentView === 'nest';
+  const Y_FADE_RANGE = 8;
 
-  // zIndex for draw ordering in both views.
-  // base depth comes from projected screen row, then layer bias handles overlaps.
-  function getZIndex(wx, wy, wz, layerBias, depthOffset = 0) {
-    if(currentView === 'nest') {
-      const projectedRow = wz + depthOffset;
-      return projectedRow * 100 + layerBias;
-    }
+  const getZIndex = (wx, wy, wz, layerBias, depthOffset = 0) => {
+    if(isNest) return (wz + depthOffset) * 100 + layerBias;
+    return (wx + depthOffset) * 10000 - wz * 1000 + layerBias;
+  };
 
-    // overworld: screen Y (world X) is primary depth, but world Z (vertical depth)
-    // must also participate so underground entities render beneath surface dirt.
-    const projectedRow = wx + depthOffset;
-    return projectedRow * 10000 - wz * 1000 + layerBias;
-  }
-
-  function queueRect(wx, wy, wz, color, offsetX, offsetY, width, height, layerBias, depthOffset = 0) {
-    const p = worldToScreen(wx, wy, wz);
+  const queue = (wx, wy, wz, layerBias, depthOffset, alpha, draw) => {
     renderQueue.push({
       zIndex: getZIndex(wx, wy, wz, layerBias, depthOffset),
       order: renderOrder++,
       draw: () => {
-        ctx.fillStyle = color;
-        ctx.fillRect(p.sx + offsetX, p.sy + offsetY, width, height);
+        const prev = ctx.globalAlpha;
+        if(alpha !== 1) ctx.globalAlpha = prev * alpha;
+        draw();
+        if(alpha !== 1) ctx.globalAlpha = prev;
       }
     });
-  }
+  };
 
-  function queueCircle(wx, wy, wz, color, radius, layerBias, depthOffset = 0) {
+  const queueRect = (wx, wy, wz, color, ox, oy, w, h, layerBias, depthOffset = 0, alpha = 1) => {
     const p = worldToScreen(wx, wy, wz);
-    renderQueue.push({
-      zIndex: getZIndex(wx, wy, wz, layerBias, depthOffset),
-      order: renderOrder++,
-      draw: () => {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(p.sx, p.sy, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
+      ctx.fillStyle = color;
+      ctx.fillRect(p.sx + ox, p.sy + oy, w, h);
     });
-  }
+  };
 
-  function queueText(wx, wy, wz, text, color, layerBias, depthOffset = 0) {
+  const queueCircle = (wx, wy, wz, color, radius, layerBias, depthOffset = 0, alpha = 1) => {
     const p = worldToScreen(wx, wy, wz);
-    renderQueue.push({
-      zIndex: getZIndex(wx, wy, wz, layerBias, depthOffset),
-      order: renderOrder++,
-      draw: () => {
-        ctx.fillStyle = color;
-        ctx.fillText(text, p.sx, p.sy);
-      }
+    queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, radius, 0, Math.PI * 2);
+      ctx.fill();
     });
-  }
+  };
 
-  // Queue background dirt tiles first so they participate in z-ordering.
-  if(currentView === 'overworld') {
-    const visible = getVisibleBlocks();
-    const screenWidthInBlocks = visible.width;
-    const screenHeightInBlocks = visible.height;
-    const cullBuffer = 1;
-    const minWorldY = Math.max(0, Math.floor(camera1X));
-    const maxWorldY = Math.min(WORLD_Y_MAX, Math.ceil(camera1X + screenWidthInBlocks + cullBuffer));
-    const minWorldX = Math.max(0, Math.floor(camera1Y));
-    const maxWorldX = Math.min(WORLD_X_MAX, Math.ceil(camera1Y + screenHeightInBlocks + cullBuffer));
+  const queueText = (wx, wy, wz, text, color, layerBias, depthOffset = 0, alpha = 1) => {
+    const p = worldToScreen(wx, wy, wz);
+    queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
+      ctx.fillStyle = color;
+      ctx.fillText(text, p.sx, p.sy);
+    });
+  };
 
-    for(let y = minWorldY; y < maxWorldY; y++) {
-      for(let x = minWorldX; x < maxWorldX; x++) {
+  const entityVisible = (y) => !isNest || Math.floor(y) === focusY;
+  const distanceAlpha = (y, minAlpha = 0.18) => {
+    if(!isNest) return 1;
+    const dist = Math.abs(Math.floor(y) - focusY);
+    return Math.max(minAlpha, 1 - Math.min(1, dist / Y_FADE_RANGE));
+  };
+
+  if(!isNest) {
+    const minY = Math.max(0, Math.floor(camera1X));
+    const maxY = Math.min(WORLD_Y_MAX, Math.ceil(camera1X + visible.width + cullBuffer));
+    const minX = Math.max(0, Math.floor(camera1Y));
+    const maxX = Math.min(WORLD_X_MAX, Math.ceil(camera1Y + visible.height + cullBuffer));
+    for(let y = minY; y < maxY; y++) {
+      for(let x = minX; x < maxX; x++) {
         if(isTileType(getBlockAt(x, y, 1), TILE.DIRT)) {
           queueRect(x, y, 1, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
         }
       }
     }
   } else {
-    const visible = getVisibleBlocks();
-    const screenWidthInBlocks = visible.width;
-    const screenHeightInBlocks = visible.height;
-    const cullBuffer = 1;
     const minZ = Math.max(0, Math.floor(camera1Y));
-    const maxZ = Math.min(WORLD_Z_MAX, Math.ceil(camera1Y + screenHeightInBlocks + cullBuffer));
+    const maxZ = Math.min(WORLD_Z_MAX, Math.ceil(camera1Y + visible.height + cullBuffer));
     const minX = Math.max(0, Math.floor(camera1X));
-    const maxX = Math.min(WORLD_X_MAX, Math.ceil(camera1X + screenWidthInBlocks + cullBuffer));
+    const maxX = Math.min(WORLD_X_MAX, Math.ceil(camera1X + visible.width + cullBuffer));
 
     for(let z = minZ; z < maxZ; z++) {
       for(let x = minX; x < maxX; x++) {
-        if(isTileType(getBlockAt(x, Math.floor(colonies[0].player.y), z), TILE.DIRT)) {
-          queueRect(x, Math.floor(colonies[0].player.y), z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+        if(!isTileType(getBlockAt(x, focusY, z), TILE.DIRT)) continue;
+
+        queueRect(x, focusY, z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+
+        let nearestEmptyDist = Infinity;
+        for(let d = 1; d <= Y_FADE_RANGE; d++) {
+          const yNeg = focusY - d;
+          const yPos = focusY + d;
+
+          if(yNeg >= 0 && isTileType(getBlockAt(x, yNeg, z), TILE.EMPTY)) {
+            nearestEmptyDist = d;
+            break;
+          }
+          if(yPos < WORLD_Y_MAX && isTileType(getBlockAt(x, yPos, z), TILE.EMPTY)) {
+            nearestEmptyDist = d;
+            break;
+          }
+        }
+
+        if(nearestEmptyDist !== Infinity) {
+          const proximity = (Y_FADE_RANGE - nearestEmptyDist + 1) / (Y_FADE_RANGE + 1);
+          const overlayAlpha = 0.08 + proximity * 0.30;
+          queueRect(x, focusY, z, "#000", 0, 0, TILE_SIZE, TILE_SIZE, -85, 0, overlayAlpha);
         }
       }
     }
   }
 
   foods.forEach(food => {
-    if(food) {
-      queueRect(food.x, food.y, food.z, "green", 5, 5, TILE_SIZE-10, TILE_SIZE-10, 20);
+    if(food && entityVisible(food.y)) {
+      queueRect(food.x, food.y, food.z, "green", 5, 5, TILE_SIZE - 10, TILE_SIZE - 10, 20);
     }
   });
 
   colonies.forEach(col => {
-    //draw nests
-    queueRect(col.nest.x, col.nest.y, col.nest.z, "gray", 0, 0, TILE_SIZE, TILE_SIZE, 10);
-    queueRect(col.nest.sX, col.nest.sY, col.nest.sZ, "purple", 0, 0, TILE_SIZE, TILE_SIZE, 11);
+    queueRect(col.nest.x, col.nest.y, col.nest.z, "gray", 0, 0, TILE_SIZE, TILE_SIZE, 10, 0, distanceAlpha(col.nest.y, 0.2));
+    queueRect(col.nest.sX, col.nest.sY, col.nest.sZ ?? col.nest.z, "purple", 0, 0, TILE_SIZE, TILE_SIZE, 11, 0, distanceAlpha(col.nest.sY, 0.2));
 
-    //draw player
-    queueCircle(col.player.x, col.player.y, col.player.z, col.color, TILE_SIZE/2-2, 50, 0.45);
+    if(entityVisible(col.player.y)) {
+      queueCircle(col.player.x, col.player.y, col.player.z, col.color, TILE_SIZE / 2 - 2, 50, 0.45);
+      if(col.player.carrying) {
+        queueRect(col.player.x, col.player.y, col.player.z, isTileType(col.player.carrying, TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 80, 0.45);
+      }
+    }
 
     col.workers.forEach(w => {
-      queueCircle(w.x, w.y, w.z, col.color, TILE_SIZE/2-3, 40, 0.45);
+      if(!entityVisible(w.y)) return;
+      queueCircle(w.x, w.y, w.z, col.color, TILE_SIZE / 2 - 3, 40, 0.45);
       if(w.carrying) {
-        queueRect(w.x, w.y, w.z, w.carrying == TILE.FOOD ? "green" : "white", 4, 4, 6, 6, 70, 0.45);
+        queueRect(w.x, w.y, w.z, isTileType(w.carrying, TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 70, 0.45);
       }
     });
 
     col.soldiers.forEach(ant => {
-      queueCircle(ant.x, ant.y, ant.z, col.color, TILE_SIZE * 0.45, 45, 0.45);
+      if(entityVisible(ant.y)) {
+        queueCircle(ant.x, ant.y, ant.z, col.color, TILE_SIZE * 0.45, 45, 0.45);
+      }
     });
 
-    if(col.player.carrying) {
-      queueRect(col.player.x, col.player.y, col.player.z, col.player.carrying == TILE.FOOD ? "green" : "white", 4, 4, 6, 6, 80, 0.45);
-    }
-
     col.eggs.forEach(egg => {
-      if(egg && egg.x !== undefined && egg.z !== undefined) {
-        if(egg.carry) {
-          queueRect(egg.x, egg.y, egg.z, "white", 4, 4, 6, 6, 65, 0.45);
-        } else {
-          queueRect(egg.x, egg.y, egg.z, "white", 5, 5, TILE_SIZE-10, TILE_SIZE-10, 15, 0.45);
-        }
+      if(!egg || egg.x === undefined || egg.z === undefined || !entityVisible(egg.y)) return;
+      if(egg.carry) {
+        queueRect(egg.x, egg.y, egg.z, "white", 4, 4, 6, 6, 65, 0.45);
+      } else {
+        queueRect(egg.x, egg.y, egg.z, "white", 5, 5, TILE_SIZE - 10, TILE_SIZE - 10, 15, 0.45);
       }
     });
   });
 
   spiders.forEach(s => {
-    queueRect(s.x, s.y, s.z, s.timer > 0 ? "white" : "darkblue", 0, 0, TILE_SIZE, TILE_SIZE, 60, 0.45);
+    if(entityVisible(s.y)) {
+      queueRect(s.x, s.y, s.z, s.timer > 0 ? "white" : "darkblue", 0, 0, TILE_SIZE, TILE_SIZE, 60, 0.45);
+    }
   });
 
   skulls.forEach(sk => {
-    queueText(sk.x, sk.y, sk.z, "💀", "white", 90, 0.45);
+    if(entityVisible(sk.y)) {
+      queueText(sk.x, sk.y, sk.z, "💀", "white", 90, 0.45);
+    }
   });
 
-  renderQueue.sort((a, b) => {
-    if(a.zIndex === b.zIndex) return a.order - b.order;
-    return a.zIndex - b.zIndex;
-  });
-
+  renderQueue.sort((a, b) => a.zIndex === b.zIndex ? a.order - b.order : a.zIndex - b.zIndex);
   renderQueue.forEach(item => item.draw());
-
   ctx.restore();
 }
 
