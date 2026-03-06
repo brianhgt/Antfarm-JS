@@ -9,59 +9,74 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-<h3>🐜 Antfarm JS 🐜</h3>
+<div id="appShell">
+  <aside id="uiColumn">
+    <h3>🐜 Antfarm JS 🐜</h3>
 
-<!-- Options Panel -->
-<div id="optionsPanel">
-  <div id="panelHeader">
-    <span>⚙️</span>
-  </div>
-  <div id="panelContent">
-    <div class="option-group">
-      <label class="checkbox-label">
-        <input type="checkbox" id="showPathsCheck">
-        Show Paths
-      </label>
+    <div id="controlPanel">
+      <button id="viewToggle">📡</button>
+      <button id="btn2">⚙️</button>
+      <button id="btn3">➖</button>
+      <button id="btn4">➕</button>
+      <button id="btn5">B 5</button>
+      <button id="btn6">B 6</button>
+      <button id="btn7">B 7</button>
+      <button id="btn8">B 8</button>
     </div>
 
-    <div class="option-group">
-      <label>Max Entities: <span id="maxEntitiesValue">2000</span></label>
-      <input type="range" id="maxEntitiesSlider" min="5" max="2000" value="2000" step="10">
-    </div>
+    <div id="optionsPanel">
+      <div id="panelHeader">
+        <span>⚙️</span>
+      </div>
+      <div id="panelContent">
+        <div class="option-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="showPathsCheck">
+            Show Paths
+          </label>
+        </div>
 
-    <div class="option-group">
-      <label>Num Spiders: <span id="numSpidersValue">1</span></label>
-      <input type="range" id="numSpidersSlider" min="0" max="10" value="1" step="1">
-    </div>
+        <div class="option-group">
+          <label>Max Entities: <span id="maxEntitiesValue">2000</span></label>
+          <input type="range" id="maxEntitiesSlider" min="5" max="2000" value="2000" step="10">
+        </div>
 
-    <div class="option-group">
-      <label>Food Per Spawn: <span id="foodAmountValue">5</span></label>
-      <input type="range" id="foodAmountSlider" min="1" max="50" value="5" step="1">
-    </div>
+        <div class="option-group">
+          <label>Num Spiders: <span id="numSpidersValue">1</span></label>
+          <input type="range" id="numSpidersSlider" min="0" max="10" value="1" step="1">
+        </div>
 
-    <div class="option-group">
-      <label>Food Frequency: <span id="foodFrequencyValue">20</span></label>
-      <input type="range" id="foodFrequencySlider" min="1" max="60" value="20" step="1">
-      <div class="option-value">seconds: <span id="foodFrequencySecs">0.3</span></div>
-    </div>
+        <div class="option-group">
+          <label>Food Per Spawn: <span id="foodAmountValue">5</span></label>
+          <input type="range" id="foodAmountSlider" min="1" max="50" value="5" step="1">
+        </div>
 
-    
-  </div>
+        <div class="option-group">
+          <label>Food Frequency: <span id="foodFrequencyValue">20</span></label>
+          <input type="range" id="foodFrequencySlider" min="1" max="60" value="20" step="1">
+          <div class="option-value">seconds: <span id="foodFrequencySecs">0.3</span></div>
+        </div>
+
+        <div id="panelStats">
+          <div class="stats-row">FPS: <span id="fpsStat">0</span></div>
+          <div class="stats-row">Zoom: <span id="zoomStat">100%</span></div>
+          <div class="stats-row">Ants: <span id="antsStat">0</span></div>
+          <div class="stats-row">Ant Deaths: <span id="antDeathsStat">0</span></div>
+          <div class="stats-row">Workers: <span id="workersStat">0</span></div>
+          <div class="stats-row">Soldiers: <span id="soldiersStat">0</span></div>
+          <div class="stats-row">Spiders: <span id="spidersStat">0</span></div>
+          <div class="stats-row">Food: <span id="foodStat">0</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main id="viewportPanel">
+    <canvas id="bg" class="gameCanvas"></canvas>
+    <canvas id="fg" class="gameCanvas"></canvas>
+    <canvas id="dbg" class="gameCanvas"></canvas>
+  </main>
 </div>
-<div id="controlPanel">
-   <button id="viewToggle">📡</button>
-   <button id="btn2">B 2</button>
-   <button id="btn3">B 3</button>
-   <button id="btn4">B 4</button>
-   <button id="btn5">B 5</button>
-   <button id="btn6">B 6</button>
-   <button id="btn7">B 7</button>
-   <button id="btn8">B 8</button>
-</div>
-
-<canvas id="bg" class="gameCanvas"></canvas>
-<canvas id="fg" class="gameCanvas"></canvas>
-<canvas id="dbg" class="gameCanvas"></canvas>
 <script>
 var jq = jQuery.noConflict();
 
@@ -70,19 +85,27 @@ jq(function(){
 // ========== OPTIONS PANEL SETUP ==========
 let panelExpanded = false;
 const optionsPanel = jq('#optionsPanel');
-const panelHeader = jq('#panelHeader');
-const panelToggle = jq('#panelToggle');
+const optionsToggleButton = jq('#btn2');
 const panelContent = jq('#panelContent');
+const fpsStatEl = document.getElementById('fpsStat');
+const zoomStatEl = document.getElementById('zoomStat');
+const antsStatEl = document.getElementById('antsStat');
+const antDeathsStatEl = document.getElementById('antDeathsStat');
+const workersStatEl = document.getElementById('workersStat');
+const soldiersStatEl = document.getElementById('soldiersStat');
+const spidersStatEl = document.getElementById('spidersStat');
+const foodStatEl = document.getElementById('foodStat');
+let fpsSmoothed = 60;
 
 // Panel expand/collapse
-panelHeader.click(function() {
+optionsToggleButton.click(function() {
   panelExpanded = !panelExpanded;
   if(panelExpanded) {
     optionsPanel.addClass('expanded');
-    panelToggle.text('◀');
+    optionsToggleButton.text('✖');
   } else {
     optionsPanel.removeClass('expanded');
-    panelToggle.text('▶');
+    optionsToggleButton.text('⚙️');
   }
 });
 
@@ -92,19 +115,18 @@ panelHeader.click(function() {
 //const ctx = canvas.getContext("2d");
 const showDebug = true;
 
+const viewportPanel = document.getElementById("viewportPanel");
 const bgCanvas = document.getElementById("bg");
-bgCanvas.width = window.innerWidth;
-bgCanvas.height = window.innerHeight;
 const fgCanvas = document.getElementById("fg");
-fgCanvas.width = window.innerWidth;
-fgCanvas.height = window.innerHeight;
 const dbgCanvas = document.getElementById("dbg");
-dbgCanvas.width = window.innerWidth;
-dbgCanvas.height = window.innerHeight;
 
 const TILE_SIZE = 20;
-let COLS=Math.floor(bgCanvas.width/TILE_SIZE);
-let ROWS=Math.floor(bgCanvas.height/TILE_SIZE);
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 2.0;
+const ZOOM_STEP = 0.1;
+let viewZoom = 1;
+let COLS=Math.floor(viewportPanel.clientWidth/TILE_SIZE);
+let ROWS=Math.floor(viewportPanel.clientHeight/TILE_SIZE);
 let canvasWidth = COLS * TILE_SIZE;
 let canvasHeight = ROWS * TILE_SIZE;
 
@@ -116,6 +138,52 @@ dbgCanvas.height = canvasHeight;
 const bgCtx = bgCanvas.getContext("2d");
 const fgCtx = fgCanvas.getContext("2d");
 const dbgCtx = dbgCanvas.getContext("2d");
+
+function getScreenBlockSize() {
+  return TILE_SIZE * viewZoom;
+}
+
+function getVisibleBlocks() {
+  const viewportWidth = viewportPanel.clientWidth;
+  const viewportHeight = viewportPanel.clientHeight;
+  const blockSize = getScreenBlockSize();
+  return {
+    width: viewportWidth / blockSize,
+    height: viewportHeight / blockSize
+  };
+}
+
+function applyZoom() {
+  [bgCanvas, fgCanvas, dbgCanvas].forEach((canvas) => {
+    canvas.style.transformOrigin = 'top left';
+    canvas.style.transform = `scale(${viewZoom})`;
+  });
+}
+
+applyZoom();
+
+function resizeCanvasesToViewport() {
+  const viewportWidth = viewportPanel.clientWidth;
+  const viewportHeight = viewportPanel.clientHeight;
+  const blockSize = getScreenBlockSize();
+
+  COLS = Math.floor(viewportWidth / blockSize);
+  ROWS = Math.floor(viewportHeight / blockSize);
+
+  COLS = Math.max(1, COLS);
+  ROWS = Math.max(1, ROWS);
+  canvasWidth = COLS * TILE_SIZE;
+  canvasHeight = ROWS * TILE_SIZE;
+
+  bgCanvas.width = fgCanvas.width = canvasWidth;
+  bgCanvas.height = fgCanvas.height = canvasHeight;
+  dbgCanvas.width = canvasWidth;
+  dbgCanvas.height = canvasHeight;
+
+  applyZoom();
+}
+
+resizeCanvasesToViewport();
 
 // coordinate convention used throughout the code:
 //   x - horizontal axis (0..WORLD_X_MAX-1)
@@ -219,25 +287,8 @@ jq(document).keyup(e=>keys[e.key]=false);
 
 // Handle window resize
 window.addEventListener('resize', function() {
-  //reset background, foreground, and debug canvas sizes
-  bgCanvas.width = window.innerWidth;
-  bgCanvas.height = window.innerHeight;
-  fgCanvas.width = window.innerWidth;
-  fgCanvas.height = window.innerHeight;
-  dbgCanvas.width = window.innerWidth;
-  dbgCanvas.height = window.innerHeight;
-  
-  // Recalculate columns, rows, and canvas dimensions based on new window size
-  COLS = Math.floor(bgCanvas.width / TILE_SIZE);
-  ROWS = Math.floor(bgCanvas.height / TILE_SIZE);
-  canvasWidth = COLS * TILE_SIZE;
-  canvasHeight = ROWS * TILE_SIZE;
-  
-  bgCanvas.width = fgCanvas.width = canvasWidth;
-  bgCanvas.height = fgCanvas.height = canvasHeight;
-  dbgCanvas.width = canvasWidth;
-  dbgCanvas.height = canvasHeight;
-  
+  resizeCanvasesToViewport();
+  clampCameraToViewBounds();
   drawBackground(bgCtx);
 });
 
@@ -285,23 +336,36 @@ jq('#viewToggle').on('click', function() {
   }
 });
 
+jq('#btn3').on('click', function() {
+  viewZoom = Math.max(MIN_ZOOM, +(viewZoom - ZOOM_STEP).toFixed(2));
+  resizeCanvasesToViewport();
+  clampCameraToViewBounds();
+});
+
+jq('#btn4').on('click', function() {
+  viewZoom = Math.min(MAX_ZOOM, +(viewZoom + ZOOM_STEP).toFixed(2));
+  resizeCanvasesToViewport();
+  clampCameraToViewBounds();
+});
+
 // Mouse wheel scrolling for camera
 function clampCameraToViewBounds() {
-  const screenWidthInBlocks = canvasWidth / TILE_SIZE;
-  const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+  const visible = getVisibleBlocks();
+  const screenWidthInBlocks = visible.width;
+  const screenHeightInBlocks = visible.height;
 
   if(primaryViewport.view === 'nest') {
     // nest view: camera1X pans world X, camera1Y pans world Z
-    const maxcamera1X = Math.max(0, WORLD_X_MAX - screenWidthInBlocks);
-    const maxcamera1Y = Math.max(0, WORLD_Z_MAX - screenHeightInBlocks);
-    primaryViewport.cameraX = Math.max(0, Math.min(primaryViewport.cameraX, maxcamera1X));
-    primaryViewport.cameraY = Math.max(0, Math.min(primaryViewport.cameraY, maxcamera1Y));
+    const maxCamera1X = Math.max(0, WORLD_X_MAX - screenWidthInBlocks);
+    const maxCamera1Y = Math.max(0, WORLD_Z_MAX - screenHeightInBlocks);
+    primaryViewport.cameraX = Math.max(0, Math.min(primaryViewport.cameraX, maxCamera1X));
+    primaryViewport.cameraY = Math.max(0, Math.min(primaryViewport.cameraY, maxCamera1Y));
   } else {
     // overworld view: screen X maps to world Y, screen Y maps to world X
-    const maxcamera1X = Math.max(0, WORLD_Y_MAX - screenWidthInBlocks);
-    const maxcamera1Y = Math.max(0, WORLD_X_MAX - screenHeightInBlocks);
-    primaryViewport.cameraX = Math.max(0, Math.min(primaryViewport.cameraX, maxcamera1X));
-    primaryViewport.cameraY = Math.max(0, Math.min(primaryViewport.cameraY, maxcamera1Y));
+    const maxCamera1X = Math.max(0, WORLD_Y_MAX - screenWidthInBlocks);
+    const maxCamera1Y = Math.max(0, WORLD_X_MAX - screenHeightInBlocks);
+    primaryViewport.cameraX = Math.max(0, Math.min(primaryViewport.cameraX, maxCamera1X));
+    primaryViewport.cameraY = Math.max(0, Math.min(primaryViewport.cameraY, maxCamera1Y));
   }
 }
 
@@ -311,7 +375,7 @@ inputCanvas.addEventListener('wheel', function(e) {
   e.preventDefault();
 
   // Increased sensitivity for better control
-  const scrollSensitivity = 0.1;
+  const scrollSensitivity = 0.1 / viewZoom;
 
   if(e.deltaX !== 0) {
     primaryViewport.cameraX += e.deltaX * scrollSensitivity;
@@ -360,8 +424,8 @@ inputCanvas.addEventListener('pointermove', function(e) {
 
   const panSensitivity = (e.pointerType === 'mouse') ? 0.08 : 0.06;
   // Invert deltaX for more intuitive panning (dragging right moves view right)
-  primaryViewport.cameraX -= deltaX * panSensitivity;
-  primaryViewport.cameraY -= deltaY * panSensitivity;
+  primaryViewport.cameraX -= deltaX * (panSensitivity / viewZoom);
+  primaryViewport.cameraY -= deltaY * (panSensitivity / viewZoom);
   clampCameraToViewBounds();
   e.preventDefault();
 });
@@ -380,6 +444,7 @@ inputCanvas.addEventListener('pointercancel', function(e) {
 });
 
 let spiderScore=0;
+let antDeaths=0;
 const colonies=[
   {name:"A", color:"black", nest:{}, eggs:new Map(), workers:[], soldiers:[], player:{}, score:0, playerTarget:null},
   {name:"B", color:"red", nest:{}, eggs:new Map(), workers:[], soldiers:[], player:{}, score:0, playerTarget:null}
@@ -476,9 +541,10 @@ inputCanvas.addEventListener('click', e=>{
   
   // Apply camera offset in nest view
   if(primaryViewport.view === 'nest') {
-    mx=(e.clientX-rect.left)/TILE_SIZE;
-    my=DEFAULT_NEST_Y; //TODO y is fixed for now
-    mz=(e.clientY-rect.top)/TILE_SIZE;
+    const blockSize = getScreenBlockSize();
+    mx=(e.clientX-rect.left)/blockSize;
+    my=Math.floor(colonies[0].player.y);
+    mz=(e.clientY-rect.top)/blockSize;
 
     mx += primaryViewport.cameraX;
     my += 0;
@@ -494,8 +560,9 @@ inputCanvas.addEventListener('click', e=>{
     // Check bounds
     // Now camera is landscape, so Y is horizontal and X is vertical
     
-    mx=(e.clientY-rect.top)/TILE_SIZE;
-    my=(e.clientX-rect.left)/TILE_SIZE;
+    const blockSize = getScreenBlockSize();
+    mx=(e.clientY-rect.top)/blockSize;
+    my=(e.clientX-rect.left)/blockSize;
     mz= 0; //surface level only for overworld clicks for now
 
     mx += primaryViewport.cameraY;
@@ -935,6 +1002,7 @@ function update(delta){
                setBlock(Math.floor(w.x), Math.floor(w.y), Math.floor(w.z || 0), TILE.DIRT);
                skulls.push({x:w.x,y:w.y,z:w.z,timer:300});
                col.workers.splice(j,1);
+              antDeaths++;
                spiderScore++;
                s.cooldownTimer = SPIDER_COOLDOWN;
             }
@@ -1087,12 +1155,14 @@ function drawForeground(ctx) {
 
   // Queue background dirt tiles first so they participate in z-ordering.
   if(currentView === 'overworld') {
-    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
-    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+    const visible = getVisibleBlocks();
+    const screenWidthInBlocks = visible.width;
+    const screenHeightInBlocks = visible.height;
+    const cullBuffer = 1;
     const minWorldY = Math.max(0, Math.floor(camera1X));
-    const maxWorldY = Math.min(WORLD_Y_MAX, Math.ceil(camera1X + screenWidthInBlocks));
+    const maxWorldY = Math.min(WORLD_Y_MAX, Math.ceil(camera1X + screenWidthInBlocks + cullBuffer));
     const minWorldX = Math.max(0, Math.floor(camera1Y));
-    const maxWorldX = Math.min(WORLD_X_MAX, Math.ceil(camera1Y + screenHeightInBlocks));
+    const maxWorldX = Math.min(WORLD_X_MAX, Math.ceil(camera1Y + screenHeightInBlocks + cullBuffer));
 
     for(let y = minWorldY; y < maxWorldY; y++) {
       for(let x = minWorldX; x < maxWorldX; x++) {
@@ -1102,17 +1172,19 @@ function drawForeground(ctx) {
       }
     }
   } else {
-    const screenWidthInBlocks = canvasWidth / TILE_SIZE;
-    const screenHeightInBlocks = canvasHeight / TILE_SIZE;
+    const visible = getVisibleBlocks();
+    const screenWidthInBlocks = visible.width;
+    const screenHeightInBlocks = visible.height;
+    const cullBuffer = 1;
     const minZ = Math.max(0, Math.floor(camera1Y));
-    const maxZ = Math.min(WORLD_Z_MAX, Math.ceil(camera1Y + screenHeightInBlocks));
+    const maxZ = Math.min(WORLD_Z_MAX, Math.ceil(camera1Y + screenHeightInBlocks + cullBuffer));
     const minX = Math.max(0, Math.floor(camera1X));
-    const maxX = Math.min(WORLD_X_MAX, Math.ceil(camera1X + screenWidthInBlocks));
+    const maxX = Math.min(WORLD_X_MAX, Math.ceil(camera1X + screenWidthInBlocks + cullBuffer));
 
     for(let z = minZ; z < maxZ; z++) {
       for(let x = minX; x < maxX; x++) {
-        if(getBlockAt(x, DEFAULT_NEST_Y, z) === TILE.DIRT) {
-          queueRect(x, DEFAULT_NEST_Y, z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+        if(getBlockAt(x, Math.floor(colonies[0].player.y), z) === TILE.DIRT) {
+          queueRect(x, Math.floor(colonies[0].player.y), z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
         }
       }
     }
@@ -1283,7 +1355,7 @@ function findPath(startX, startY, startZ, goalX, goalY, goalZ, tolerance = 0.08)
     //   ? [...dirs].sort(() => Math.random() - 0.5)
     //   : dirs;
     
-    const neighborDirs = Math.random() < 0.1 ? [...dirs].sort(() => Math.random() - 0.5) : dirs;
+    const neighborDirs = tolerance > 0 && Math.random() < 0.1 ? [...dirs].sort(() => Math.random() - 0.5) : dirs;
     for (let d of neighborDirs) {
       let nx = current.x + d.x;
       let ny = current.y + d.y;
@@ -1544,6 +1616,20 @@ function gameLoop(timestamp) {
   // rAF passes a high-resolution timestamp
   let delta = (timestamp - _lastTimestamp) / 1000;
   _lastTimestamp = timestamp;
+
+  const instantFps = delta > 0 ? 1 / delta : 0;
+  fpsSmoothed = fpsSmoothed * 0.9 + instantFps * 0.1;
+  const workersCount = colonies.reduce((total, col) => total + col.workers.length, 0);
+  const soldiersCount = colonies.reduce((total, col) => total + col.soldiers.length, 0);
+  const totalAnts = workersCount + soldiersCount;
+  if(fpsStatEl) fpsStatEl.textContent = Math.round(fpsSmoothed).toString();
+  if(zoomStatEl) zoomStatEl.textContent = `${Math.round(viewZoom * 100)}%`;
+  if(antsStatEl) antsStatEl.textContent = totalAnts.toString();
+  if(antDeathsStatEl) antDeathsStatEl.textContent = antDeaths.toString();
+  if(workersStatEl) workersStatEl.textContent = workersCount.toString();
+  if(soldiersStatEl) soldiersStatEl.textContent = soldiersCount.toString();
+  if(spidersStatEl) spidersStatEl.textContent = spiders.length.toString();
+  if(foodStatEl) foodStatEl.textContent = foods.size.toString();
 
   update(delta);         // move ants, spawn eggs, AI
   drawBackground(bgCtx); // redraw background with camera offset

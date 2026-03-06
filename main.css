@@ -4,6 +4,7 @@
   color: #fff;
   font-family: sans-serif;
   overflow: hidden; /* prevent scrollbars */
+    height: 100vh;
 }
 
 canvas {
@@ -17,57 +18,63 @@ canvas {
 #dbg {
   touch-action: none;
 }
-h3 { text-align:center; }
 
-#optionsPanel {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  background: #222;
-  border: 2px solid #555;
-  border-radius: 5px;
-  padding: 0;
-  z-index: 1000;
-  box-shadow: 0 0 10px rgba(0,0,0,0.8);
-  font-family: monospace;
+#appShell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#uiColumn {
+  width: 164px;
+  min-width: 164px;
+  max-width: 164px;
+  padding: 10px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: auto;
-}
-
-#controlPanel {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  background: #222;
-  border: 2px solid #555;
-  border-radius: 5px;
-  padding: 10px;
-  z-index: 1000;
-  box-shadow: 0 0 10px rgba(0,0,0,0.8);
-  font-family: monospace;
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 8px;
-  width: 45px;
-  min-height: fit-content;
+  background: #1f1f1f;
+  z-index: 2;
 }
 
+h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+}
+
+#viewportPanel {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+/**
+ * Control Panel Styles
+ * 
+ * Defines the styling for the main control panel container.
+ * This panel serves as the primary interface for user interactions
+ * and control settings.
+ * 
+ * @selector #controlPanel
+ * @category Layout
+ */
 #controlPanel {
-  position: fixed;
-  top: 10px;
-  left: 10px;
+  position: relative;
   background: #222;
   border: 2px solid #555;
   border-radius: 5px;
   padding: 5px;
-  z-index: 1000;
+  z-index: 2;
   box-shadow: 0 0 10px rgba(0,0,0,0.8);
   font-family: monospace;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  width: 64px;
+  width: 100%;
+  box-sizing: border-box;
   min-height: fit-content;
 }
 
@@ -80,13 +87,14 @@ h3 { text-align:center; }
   cursor: pointer;
   border-radius: 3px;
   font-family: monospace;
-  font-size: 10px;
+  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  width: 30px;
+  width: 100%;
 }
+
 
 #controlPanel button:hover {
   background: #666;
@@ -97,30 +105,31 @@ h3 { text-align:center; }
 }
 
 #optionsPanel {
-  position: fixed;
-  top: 180px;
-  left: 10px;
+  position: relative;
   background: #222;
   border: 2px solid #555;
   border-radius: 5px;
   padding: 0;
-  z-index: 1000;
+  z-index: 2;
   box-shadow: 0 0 10px rgba(0,0,0,0.8);
   font-family: monospace;
-  display: flex;
+  display: none;
   flex-direction: column;
-  width: auto;
+  width: 100%;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
 }
 
 #optionsPanel.expanded {
-  width: 300px;
-  transition: width 0.3s ease;
+  display: flex;
+  width: 100%;
 }
 
 #panelHeader {
   background: #444;
   padding: 0px 0px;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   display: flex;
   justify-content: space-between;
@@ -130,7 +139,7 @@ h3 { text-align:center; }
 }
 
 #panelHeader:hover {
-  background: #555;
+  background: #444;
 }
 
 #panelToggle {
@@ -145,10 +154,13 @@ h3 { text-align:center; }
   flex-direction: column;
   gap: 10px;
   background: #2a2a2a;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 #optionsPanel.expanded #panelContent {
   display: flex;
+  flex: 1;
 }
 
 #optionsPanel.expanded #panelContent {
@@ -198,6 +210,20 @@ h3 { text-align:center; }
   display: flex;
   align-items: center;
   cursor: pointer;
+  font-size: 12px;
+  color: #ccc;
+}
+
+#panelStats {
+  border-top: 1px solid #555;
+  margin-top: 6px;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stats-row {
   font-size: 12px;
   color: #ccc;
 }
