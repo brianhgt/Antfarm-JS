@@ -1,5 +1,80 @@
 var jq = jQuery.noConflict();
 
+// Constants
+const TILE = {
+  EMPTY: 'EMPTY',
+  DIRT: 'DIRT',
+  ROCK: 'ROCK',
+  WATER: 'WATER',
+  NEST: 'NEST',
+  FOOD: 'FOOD',
+  EGG: 'EGG'
+};
+const ANT_TYPE = { QUEEN: 0, WORKER: 1, SOLDIER: 2, FEMALE: 3, MALE: 4 };
+const TILE_OPEN_SPACE = 1;
+const SPIDER_CAN_GO_BELOW = false;
+const WANDER_DIST = 6;
+const EGG_HATCH_TIME = 1000 / 60; // ~16.7 seconds
+const SPIDER_COOLDOWN = 5;       // seconds between bites
+const FOOD_SPAWN_INTERVAL = 20;  // seconds between food spawns
+const PLAYER_SPEED = 6;   // roughly 0.1 per frame @60fps
+const ANT_SPEED = 2.4; // roughly 0.04 per frame @60fps
+const SPIDER_SPEED = 1.2; // roughly 0.02 per frame @60fps
+const PATH_TOLERANCE = 0.08; // 8%: choose from near-best A* frontier nodes for route variety
+const WORLD_X_MAX = 80; // Each nest is 80 blocks wide
+const WORLD_Y_MAX = 160;
+const WORLD_Z_MAX = 40;
+const FOOD_GROUP_SIZE = 5;
+const DEFAULT_NEST_Y = 40;
+const OVERWORLD_Y_RATIO = 20; //Number of tiles in the overworld to the next nest section
+const TILE_SIZE = 20;
+
+const DEFAULT_TILE_HP = {
+  EMPTY: 0,
+  DIRT: 30,
+  ROCK: 80,
+  WATER: 10,
+  NEST: 10,
+  FOOD: 10,
+  EGG: 10
+};
+
+function createTile(type, hp) {
+  const nextHp = hp === undefined ? (DEFAULT_TILE_HP[type] ?? 1) : hp;
+  return { type, hp: nextHp };
+}
+
+function normalizeTile(tileLike) {
+  if(tileLike && typeof tileLike === 'object' && tileLike.type) {
+    return { type: tileLike.type, hp: tileLike.hp ?? (DEFAULT_TILE_HP[tileLike.type] ?? 1) };
+  }
+  if(typeof tileLike === 'string') {
+    return createTile(tileLike);
+  }
+  return createTile(TILE.EMPTY);
+}
+
+function tileType(tileLike) {
+  if(tileLike == null) return null;
+  if(typeof tileLike === 'string') return tileLike;
+  if(typeof tileLike === 'object') return tileLike.type ?? null;
+  return null;
+}
+
+function isTileType(tileLike, type) {
+  return tileType(tileLike) === type;
+}
+
+function isSolidTile(tileLike) {
+  const type = tileType(tileLike);
+  return type === TILE.DIRT || type === TILE.ROCK || type === TILE.WATER;
+}
+
+function isDiggableTile(tileLike) {
+  const type = tileType(tileLike);
+  return type === TILE.DIRT || type === TILE.ROCK;
+}
+
 // Mutable configuration variables
 let showDebugPaths = false;
 let maxEntities = 2000;
@@ -96,7 +171,7 @@ for(let x = 0; x < WORLD_X_MAX; x++){
     let column = [];
     for(let z = 0; z < WORLD_Z_MAX; z++){
       // top portion of each nest/overworld plane is empty space
-      column.push(z < TILE_OPEN_SPACE ? TILE.EMPTY : TILE.DIRT);
+      column.push(createTile(z < TILE_OPEN_SPACE ? TILE.EMPTY : TILE.DIRT));
     }
     plane.push(column);
   }
@@ -256,7 +331,7 @@ colonies.forEach((col, colIdx)=>{
     for(let x = nx - 1; x <= nx + 1; x++) {
         for(let z = nz - 1; z <= nz + 2; z++) {
           if(x >= 0 && x < WORLD_X_MAX && z >= 0 && z < WORLD_Z_MAX) {
-            if(getBlockAt(x, ny, z) === TILE.DIRT) {
+            if(isTileType(getBlockAt(x, ny, z), TILE.DIRT)) {
               setBlock(x, ny, z, TILE.EMPTY);
             }
           }
@@ -415,13 +490,13 @@ function update(delta){
     let tz = Math.floor(colonies[0].player.z);
 		let viewMap = getViewMap();
     let block = getBlockAt(tx, ty, tz);
-		if(!colonies[0].player.carrying){
-		  if(block == TILE.FOOD || block==TILE.EGG){
+    if(!colonies[0].player.carrying){
+      if(isTileType(block, TILE.FOOD) || isTileType(block, TILE.EGG)){
         colonies[0].player.carrying=getBlockAt(tx, ty, tz);
         setBlock(tx, ty, tz, TILE.EMPTY);
 		  }
 		}else{
-		  if(block==TILE.EMPTY){
+      if(isTileType(block, TILE.EMPTY)){
         //drop carried item
         setBlock(tx, ty, tz, colonies[0].player.carrying);
         colonies[0].player.carrying = null;
@@ -525,8 +600,8 @@ function update(delta){
       let tx=Math.floor(player.x), ty=Math.floor(player.y), tz=Math.floor(player.z);
       // when interacting we always work with the 3‑D map via accessors
       // dig
-      if(getBlockAt(tx, ty, tz) === TILE.DIRT) {
-         setBlock(tx, ty, tz, TILE.EMPTY);
+      if(isDiggableTile(getBlockAt(tx, ty, tz))) {
+        damageTileAt(tx, ty, tz, 10);
          drawBackground(bgCtx);
       }
       // pickup egg
@@ -566,7 +641,7 @@ function update(delta){
               ant.path=findPath(Math.floor(ant.x),Math.floor(ant.y),Math.floor(ant.z),
                   Math.floor(target.x),Math.floor(target.y),Math.floor(target.z), PATH_TOLERANCE);
               ant.pathIndex=0;
-                if (!ant.path && getBlockAt(Math.floor(target.x), Math.floor(target.y), Math.floor(target.z)) == TILE.DIRT) {
+                if (!ant.path && isSolidTile(getBlockAt(Math.floor(target.x), Math.floor(target.y), Math.floor(target.z)))) {
                   // If no path found and target is dirt, the food is stuck inside a block. Remove the food so ants can try again
                   foods.delete(get3dHash(Math.floor(target.x), Math.floor(target.y), Math.floor(target.z)));
                 }
@@ -608,8 +683,8 @@ function update(delta){
 
          let antX = Math.floor(ant.x), antY = Math.floor(ant.y), antZ = Math.floor(ant.z);
          // dig at ant's current location
-         if(getBlockAt(antX, antY, antZ) === TILE.DIRT) {
-            setBlock(antX, antY, antZ, TILE.EMPTY);
+        if(isDiggableTile(getBlockAt(antX, antY, antZ))) {
+          damageTileAt(antX, antY, antZ, 10);
             drawBackground(bgCtx);
          }
          // pick up food
@@ -677,8 +752,8 @@ function update(delta){
 
          let antX = Math.floor(ant.x), antY = Math.floor(ant.y), antZ = Math.floor(ant.z);
          // dig
-         if(getBlockAt(antX, antY, antZ) === TILE.DIRT) {
-            setBlock(antX, antY, antZ, TILE.EMPTY);
+        if(isDiggableTile(getBlockAt(antX, antY, antZ))) {
+          damageTileAt(antX, antY, antZ, 10);
             drawBackground(bgCtx);
          }
          // (previous food/egg logic moved into worker loop)
@@ -822,16 +897,28 @@ function getBlockAt(x, y, z) {
         && z >= 0 && z < WORLD_Z_MAX) {
     return viewMap[x][y][z];
   }
-  return TILE.DIRT;
+  return null;
 }
 
 function setBlock(x, y, z, tile) {
   if(x >= 0 && x < WORLD_X_MAX
         && y >= 0 && y < WORLD_Y_MAX
         && z >= 0 && z < WORLD_Z_MAX) {
-    viewMap[x][y][z] = tile;
+    viewMap[x][y][z] = normalizeTile(tile);
   }
-}  
+}
+
+function damageTileAt(x, y, z, amount = 10) {
+  const tile = getBlockAt(x, y, z);
+  if(!isDiggableTile(tile)) return false;
+  const nextHp = (tile.hp ?? 0) - amount;
+  if(nextHp <= 0) {
+    setBlock(x, y, z, TILE.EMPTY);
+    return true;
+  }
+  setBlock(x, y, z, { type: tile.type, hp: nextHp });
+  return true;
+}
 
 
 // return map data appropriate for the current view.
@@ -938,7 +1025,7 @@ function drawForeground(ctx) {
 
     for(let y = minWorldY; y < maxWorldY; y++) {
       for(let x = minWorldX; x < maxWorldX; x++) {
-        if(getBlockAt(x, y, 1) === TILE.DIRT) {
+        if(isTileType(getBlockAt(x, y, 1), TILE.DIRT)) {
           queueRect(x, y, 1, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
         }
       }
@@ -955,7 +1042,7 @@ function drawForeground(ctx) {
 
     for(let z = minZ; z < maxZ; z++) {
       for(let x = minX; x < maxX; x++) {
-        if(getBlockAt(x, Math.floor(colonies[0].player.y), z) === TILE.DIRT) {
+        if(isTileType(getBlockAt(x, Math.floor(colonies[0].player.y), z), TILE.DIRT)) {
           queueRect(x, Math.floor(colonies[0].player.y), z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
         }
       }
@@ -1134,7 +1221,7 @@ function findPath(startX, startY, startZ, goalX, goalY, goalZ, tolerance = 0.08)
       let nz = current.z + d.z;
 
       if (nx < 0 || nx >= mapX || ny < 0 || ny >= mapY || nz < 0 || nz >= mapZ) continue;
-      if (getBlockAt(nx, ny, nz) == TILE.DIRT) continue;
+      if (isSolidTile(getBlockAt(nx, ny, nz))) continue;
 
       let nk = key(nx, ny, nz);
       if (closed.has(nk)) continue;
@@ -1184,7 +1271,7 @@ function spawnEggNearNest(col, type){
   let ey = col.nest.y; // eggs stay in the same world‑Y plane as the nest
 
   // make sure the location is inside the world and free
-  if(isValidBlock(ex, ey, ez) && (getBlockAt(ex, ey, ez) === TILE.DIRT || getBlockAt(ex, ey, ez) === TILE.EMPTY)) {
+  if(isValidBlock(ex, ey, ez) && (isTileType(getBlockAt(ex, ey, ez), TILE.DIRT) || isTileType(getBlockAt(ex, ey, ez), TILE.EMPTY))) {
     let totalEntities = countTotalEntities();
     if(totalEntities >= maxEntities) return;
 
@@ -1213,7 +1300,7 @@ function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius){
     if(rx>=0 && rx<WORLD_X_MAX
         && ry>=0 && ry<WORLD_Y_MAX
         && rz>=0 && rz<WORLD_Z_MAX
-        && getBlockAt(rx, ry, rz) !== TILE.DIRT) {
+        && !isSolidTile(getBlockAt(rx, ry, rz))) {
       return {x:rx, y:ry, z:rz};
     }
   }

@@ -1,5 +1,9 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "type": true
+        "type": true,
+        "/^node --check \\.\\\\main\\.js; node --check \\.\\\\util\\.js; node --check \\.\\\\controlPanel\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

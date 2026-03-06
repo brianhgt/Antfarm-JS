@@ -1,28 +1,30 @@
 // Utility functions and constants for Antfarm JS
 
-// Constants
-const TILE = { EMPTY: 0, DIRT: 1, FOOD: 2, NEST: 3, EGG: 4 };
-const ANT_TYPE = { QUEEN: 0, WORKER: 1, SOLDIER: 2, FEMALE: 3, MALE: 4 };
-const TILE_OPEN_SPACE = 1;
-const SPIDER_CAN_GO_BELOW = false;
-const WANDER_DIST = 6;
-const EGG_HATCH_TIME = 1000 / 60; // ~16.7 seconds
-const SPIDER_COOLDOWN = 5;       // seconds between bites
-const FOOD_SPAWN_INTERVAL = 20;  // seconds between food spawns
-const PLAYER_SPEED = 6;   // roughly 0.1 per frame @60fps
-const ANT_SPEED = 2.4; // roughly 0.04 per frame @60fps
-const SPIDER_SPEED = 1.2; // roughly 0.02 per frame @60fps
-const PATH_TOLERANCE = 0.08; // 8%: choose from near-best A* frontier nodes for route variety
-const WORLD_X_MAX = 80; // Each nest is 80 blocks wide
-const WORLD_Y_MAX = 160;
-const WORLD_Z_MAX = 40;
-const FOOD_GROUP_SIZE = 5;
-const DEFAULT_NEST_Y = 40;
-const OVERWORLD_Y_RATIO = 20; //Number of tiles in the overworld to the next nest section
-const TILE_SIZE = 20;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.1;
+
+function utilTileType(tileLike) {
+  if(tileLike == null) return null;
+  if(typeof tileLike === 'string') return tileLike;
+  if(typeof tileLike === 'object') return tileLike.type ?? null;
+  return null;
+}
+
+function utilNormalizeTile(tileLike) {
+  if(tileLike && typeof tileLike === 'object' && tileLike.type) {
+    return { type: tileLike.type, hp: tileLike.hp ?? (tileLike.type === TILE.DIRT ? 30 : 10) };
+  }
+  if(typeof tileLike === 'string') {
+    return { type: tileLike, hp: tileLike === TILE.DIRT ? 30 : 10 };
+  }
+  return { type: TILE.EMPTY, hp: 0 };
+}
+
+function isSolidTileValue(tileLike) {
+  const type = utilTileType(tileLike);
+  return type === TILE.DIRT || type === TILE.ROCK || type === TILE.WATER;
+}
 
 // Utility functions
 
@@ -182,13 +184,13 @@ function isMoveOutsideWorld(x, y, z) {
 }
 
 function getBlockAt(x, y, z) {
-  if (!isValidBlock(x, y, z)) return TILE.DIRT;
-  return world[z][y][x];
+  if (!isValidBlock(x, y, z)) return null;
+  return world[x][y][z];
 }
 
 function setBlock(x, y, z, tile) {
   if (!isValidBlock(x, y, z)) return;
-  world[z][y][x] = tile;
+  world[x][y][z] = utilNormalizeTile(tile);
 }
 
 function getViewMap() {
@@ -248,8 +250,8 @@ function findPath(startX, startY, startZ, goalX, goalY, goalZ, tolerance = 0.08)
 
     for (const neighbor of neighbors) {
       if (neighbor.x < 0 || neighbor.x >= mapX || neighbor.y < 0 || neighbor.y >= mapY || neighbor.z < 0 || neighbor.z >= mapZ) continue;
-      const tile = map[neighbor.z][neighbor.y][neighbor.x];
-      if (tile !== TILE.EMPTY && tile !== TILE.FOOD) continue;
+      const tile = map[neighbor.x][neighbor.y][neighbor.z];
+      if (isSolidTileValue(tile)) continue;
 
       const neighborKey = key(neighbor.x, neighbor.y, neighbor.z);
       const tentativeGScore = gScore.get(current.key) + 1;
@@ -303,7 +305,7 @@ function spawnEggNearNest(col, type) {
     const ex = Math.floor(Math.random() * WORLD_X_MAX);
     const ey = nestY;
     const ez = Math.floor(Math.random() * WORLD_Z_MAX);
-    if (getBlockAt(ex, ey, ez) === TILE.NEST) {
+    if (utilTileType(getBlockAt(ex, ey, ez)) === TILE.NEST) {
       col.eggs.push({ x: ex, y: ey, z: ez, type: type, timer: EGG_HATCH_TIME });
       break;
     }
@@ -326,7 +328,7 @@ function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
     const x = centerX + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
     const y = centerY + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
     const z = centerZ + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
-    if (isValidBlock(x, y, z) && getBlockAt(x, y, z) === TILE.EMPTY) {
+    if (isValidBlock(x, y, z) && utilTileType(getBlockAt(x, y, z)) === TILE.EMPTY) {
       return { x, y, z };
     }
     attempts++;
