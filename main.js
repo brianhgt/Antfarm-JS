@@ -5,17 +5,13 @@ import {
   WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, NEST_MAX_DEPTH, DEFAULT_NEST_Y,
   state
 } from './core.js';
-import {
-  createTile, isTileType, get3dHash, setBlock, getBlockAt
-} from './util.js';
-import {
-  initCanvases, drawBackground, drawForeground, drawDebug, resizeCanvasesToViewport
-} from './render/render2D.js';
-import { setupInput, clampCameraToViewBounds } from './render/controls.js';
-import { initControlPanel, updateStats } from './render/controlPanel.js';
-import { updatePlayers } from './entities/player.js';
+import * as Util from './util.js';
+import * as Render2D from './render/render2D.js';
+import * as Controls from './render/controls.js';
+import * as ControlPanel from './render/controlPanel.js';
+import * as Player from './entities/player.js';
 import { updateSpiders, updateSkulls } from './entities/enemy.js';
-import { hatchEggs, updateWorkers, updateSoldiers } from './systems/ai.js';
+import * as AI from './systems/ai.js';
 import { spawnFood } from './systems/physics.js';
 
 const jq = jQuery.noConflict();
@@ -29,7 +25,7 @@ function initWorld() {
     for (let y = 0; y < WORLD_Y_MAX; y++) {
       const column = [];
       for (let z = 0; z < WORLD_Z_MAX; z++) {
-        column.push(createTile(z < TILE_OPEN_SPACE ? TILE.EMPTY : TILE.DIRT));
+        column.push(Util.createTile(z < TILE_OPEN_SPACE ? TILE.EMPTY : TILE.DIRT));
       }
       plane.push(column);
     }
@@ -41,7 +37,7 @@ function initWorld() {
     const fx = Math.floor(Math.random() * WORLD_X_MAX);
     const fy = Math.floor(Math.random() * WORLD_Y_MAX);
     const fz = 0;
-    state.foods.set(get3dHash(fx, fy, fz), { x: fx, y: fy, z: fz, carry: false });
+    state.foods.set(Util.get3dHash(fx, fy, fz), { x: fx, y: fy, z: fz, carry: false });
   }
 
   // Colonies
@@ -67,15 +63,15 @@ function initWorld() {
     const ny = DEFAULT_NEST_Y;
     const nz = 2 + 1 + Math.min(Math.floor(Math.random() * (WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
 
-    setBlock(nx, ny, nz, TILE.NEST);
-    setBlock(nx, ny, nz + 1, TILE.NEST);
+    Util.setBlock(nx, ny, nz, TILE.NEST);
+    Util.setBlock(nx, ny, nz + 1, TILE.NEST);
 
     // Clear around nest
     for (let x = nx - 1; x <= nx + 1; x++) {
       for (let z = nz - 1; z <= nz + 2; z++) {
         if (x >= 0 && x < WORLD_X_MAX && z >= 0 && z < WORLD_Z_MAX) {
-          if (isTileType(getBlockAt(x, ny, z), TILE.DIRT)) {
-            setBlock(x, ny, z, TILE.EMPTY);
+          if (Util.isTileType(Util.getBlockAt(x, ny, z), TILE.DIRT)) {
+            Util.setBlock(x, ny, z, TILE.EMPTY);
           }
         }
       }
@@ -83,17 +79,17 @@ function initWorld() {
 
     // Horizontal tunnel
     for (let i = 1; i <= 3; i++) {
-      setBlock(nx - i, ny, nz + 1, TILE.EMPTY);
-      setBlock(nx - i, ny, nz + 2, TILE.EMPTY);
+      Util.setBlock(nx - i, ny, nz + 1, TILE.EMPTY);
+      Util.setBlock(nx - i, ny, nz + 2, TILE.EMPTY);
     }
 
     // Vertical tunnel to surface with random jitter
     let xShift = 0;
     for (let z = nz + 2; z > 0; z--) {
-      setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
+      Util.setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
       if (Math.random() < 0.1) {
         xShift += Math.ceil(Math.random() * 3 - 2);
-        setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
+        Util.setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
       }
     }
 
@@ -102,8 +98,8 @@ function initWorld() {
 
     // Spawn initial egg
     const ex = nx + 1, ey = ny, ez = nz;
-    setBlock(ex, ey, ez, TILE.EMPTY);
-    col.eggs.set(get3dHash(ex, ey, ez), {
+    Util.setBlock(ex, ey, ez, TILE.EMPTY);
+    col.eggs.set(Util.get3dHash(ex, ey, ez), {
       x: ex, y: ey, z: ez,
       type: ANT_TYPE.WORKER, timer: EGG_HATCH_TIME, carry: false
     });
@@ -114,12 +110,12 @@ function initWorld() {
 
 function update(delta) {
   spawnFood(delta);
-  updatePlayers(delta);
+  Player.updatePlayers(delta);
 
   state.colonies.forEach((col, idx) => {
-    hatchEggs(col, idx, delta);
-    updateWorkers(col, delta);
-    updateSoldiers(col, delta);
+    AI.hatchEggs(col, idx, delta);
+    AI.updateWorkers(col, delta);
+    AI.updateSoldiers(col, delta);
   });
 
   updateSpiders(delta);
@@ -141,34 +137,34 @@ function gameLoop(timestamp) {
   const soldiersCount = state.colonies.reduce((t, c) => t + c.soldiers.length, 0);
   const totalAnts     = workersCount + soldiersCount;
 
-  updateStats(
+  ControlPanel.updateStats(
     Math.round(state.fpsSmoothed), state.viewZoom, totalAnts,
     state.antDeaths, workersCount, soldiersCount,
     state.spiders.length, state.foods.size
   );
 
   update(delta);
-  drawBackground();
-  drawForeground();
-  if (state.showDebugPaths) drawDebug();
+  Render2D.drawBackground();
+  Render2D.drawForeground();
+  if (state.showDebugPaths) Render2D.drawDebug();
   requestAnimationFrame(gameLoop);
 }
 
 // ─── Bootstrap ─────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  initCanvases();
+  Render2D.initCanvases();
   initWorld();
-  setupInput(state.dbgCanvas);
-  initControlPanel(jq);
+  Controls.setupInput(state.dbgCanvas);
+  ControlPanel.initControlPanel(jq);
 
   // Resize handler
   window.addEventListener('resize', () => {
-    resizeCanvasesToViewport();
-    clampCameraToViewBounds();
-    drawBackground();
+    Render2D.resizeCanvasesToViewport();
+    Controls.clampCameraToViewBounds();
+    Render2D.drawBackground();
   });
 
-  drawBackground();
+  Render2D.drawBackground();
   requestAnimationFrame(gameLoop);
 });

@@ -1,53 +1,51 @@
 // render/render2D.js — Canvas 2D rendering
 
-import {
-  TILE, TILE_SIZE, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state
-} from '../core.js';
-import { isTileType, getBlockAt, hexToRgba } from '../util.js';
-import { getVisibleBlocks } from './controls.js';
+import * as Core from '../core.js';
+import * as Util from '../util.js';
+import * as Controls from './controls.js';
 
 // ─── Canvas setup ──────────────────────────────────────────────
 
 export function initCanvases() {
-  state.viewportPanel = document.getElementById('viewportPanel');
-  state.bgCanvas = document.getElementById('bg');
-  state.fgCanvas = document.getElementById('fg');
-  state.dbgCanvas = document.getElementById('dbg');
+  Core.state.viewportPanel = document.getElementById('viewportPanel');
+  Core.state.bgCanvas = document.getElementById('bg');
+  Core.state.fgCanvas = document.getElementById('fg');
+  Core.state.dbgCanvas = document.getElementById('dbg');
   resizeCanvasesToViewport();
 }
 
 export function worldToScreen(wx, wy, wz) {
-  if (state.currentView === 'nest') {
-    return { sx: wx * TILE_SIZE, sy: wz * TILE_SIZE };
+  if (Core.state.currentView === 'nest') {
+    return { sx: wx * Core.TILE_SIZE, sy: wz * Core.TILE_SIZE };
   }
-  return { sx: wy * TILE_SIZE, sy: wx * TILE_SIZE };
+  return { sx: wy * Core.TILE_SIZE, sy: wx * Core.TILE_SIZE };
 }
 
 export function applyZoom() {
-  [state.bgCanvas, state.fgCanvas, state.dbgCanvas].forEach(canvas => {
+  [Core.state.bgCanvas, Core.state.fgCanvas, Core.state.dbgCanvas].forEach(canvas => {
     canvas.style.transformOrigin = 'top left';
-    canvas.style.transform = `scale(${state.viewZoom})`;
+    canvas.style.transform = `scale(${Core.state.viewZoom})`;
   });
 }
 
 export function resizeCanvasesToViewport() {
-  const viewportWidth = state.viewportPanel.clientWidth;
-  const viewportHeight = state.viewportPanel.clientHeight;
-  const blockSize = TILE_SIZE * state.viewZoom;
+  const viewportWidth = Core.state.viewportPanel.clientWidth;
+  const viewportHeight = Core.state.viewportPanel.clientHeight;
+  const blockSize = Core.TILE_SIZE * Core.state.viewZoom;
 
-  state.COLS = Math.max(1, Math.floor(viewportWidth / blockSize));
-  state.ROWS = Math.max(1, Math.floor(viewportHeight / blockSize));
-  state.canvasWidth = state.COLS * TILE_SIZE;
-  state.canvasHeight = state.ROWS * TILE_SIZE;
+  Core.state.COLS = Math.max(1, Math.floor(viewportWidth / blockSize));
+  Core.state.ROWS = Math.max(1, Math.floor(viewportHeight / blockSize));
+  Core.state.canvasWidth = Core.state.COLS * Core.TILE_SIZE;
+  Core.state.canvasHeight = Core.state.ROWS * Core.TILE_SIZE;
 
-  state.bgCanvas.width = state.fgCanvas.width = state.canvasWidth;
-  state.bgCanvas.height = state.fgCanvas.height = state.canvasHeight;
-  state.dbgCanvas.width = state.canvasWidth;
-  state.dbgCanvas.height = state.canvasHeight;
+  Core.state.bgCanvas.width = Core.state.fgCanvas.width = Core.state.canvasWidth;
+  Core.state.bgCanvas.height = Core.state.fgCanvas.height = Core.state.canvasHeight;
+  Core.state.dbgCanvas.width = Core.state.canvasWidth;
+  Core.state.dbgCanvas.height = Core.state.canvasHeight;
 
-  state.bgCtx = state.bgCanvas.getContext('2d');
-  state.fgCtx = state.fgCanvas.getContext('2d');
-  state.dbgCtx = state.dbgCanvas.getContext('2d');
+  Core.state.bgCtx = Core.state.bgCanvas.getContext('2d');
+  Core.state.fgCtx = Core.state.fgCanvas.getContext('2d');
+  Core.state.dbgCtx = Core.state.dbgCanvas.getContext('2d');
 
   applyZoom();
 }
@@ -55,24 +53,24 @@ export function resizeCanvasesToViewport() {
 // ─── Drawing ───────────────────────────────────────────────────
 
 export function drawBackground() {
-  state.bgCtx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
+  Core.state.bgCtx.clearRect(0, 0, Core.state.canvasWidth, Core.state.canvasHeight);
 }
 
 export function drawForeground() {
-  const ctx = state.fgCtx;
-  ctx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
+  const ctx = Core.state.fgCtx;
+  ctx.clearRect(0, 0, Core.state.canvasWidth, Core.state.canvasHeight);
   ctx.save();
-  ctx.translate(-state.camera1X * TILE_SIZE, -state.camera1Y * TILE_SIZE);
+  ctx.translate(-Core.state.camera1X * Core.TILE_SIZE, -Core.state.camera1Y * Core.TILE_SIZE);
 
   const renderQueue = [];
   let renderOrder = 0;
-  const visible = getVisibleBlocks();
+  const visible = Controls.getVisibleBlocks();
   const cullBuffer = 1;
   const focusY = Math.floor(
-    (state.colonies[state.currentNestIndex]?.player?.y
-      ?? state.colonies[0]?.player?.y) || 0
+    (Core.state.colonies[Core.state.currentNestIndex]?.player?.y
+      ?? Core.state.colonies[0]?.player?.y) || 0
   );
-  const isNest = state.currentView === 'nest';
+  const isNest = Core.state.currentView === 'nest';
   const Y_FADE_RANGE = 8;
 
   // ── render-queue helpers ──
@@ -131,39 +129,39 @@ export function drawForeground() {
   // ── Terrain ──
 
   if (!isNest) {
-    const minY = Math.max(0, Math.floor(state.camera1X));
-    const maxY = Math.min(WORLD_Y_MAX, Math.ceil(state.camera1X + visible.width + cullBuffer));
-    const minX = Math.max(0, Math.floor(state.camera1Y));
-    const maxX = Math.min(WORLD_X_MAX, Math.ceil(state.camera1Y + visible.height + cullBuffer));
+    const minY = Math.max(0, Math.floor(Core.state.camera1X));
+    const maxY = Math.min(Core.WORLD_Y_MAX, Math.ceil(Core.state.camera1X + visible.width + cullBuffer));
+    const minX = Math.max(0, Math.floor(Core.state.camera1Y));
+    const maxX = Math.min(Core.WORLD_X_MAX, Math.ceil(Core.state.camera1Y + visible.height + cullBuffer));
     for (let y = minY; y < maxY; y++) {
       for (let x = minX; x < maxX; x++) {
-        if (isTileType(getBlockAt(x, y, 1), TILE.DIRT)) {
-          queueRect(x, y, 1, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+        if (Util.isTileType(Util.getBlockAt(x, y, 1), Core.TILE.DIRT)) {
+          queueRect(x, y, 1, "#5B3A1E", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, -90);
         }
       }
     }
   } else {
-    const minZ = Math.max(0, Math.floor(state.camera1Y));
-    const maxZ = Math.min(WORLD_Z_MAX, Math.ceil(state.camera1Y + visible.height + cullBuffer));
-    const minX = Math.max(0, Math.floor(state.camera1X));
-    const maxX = Math.min(WORLD_X_MAX, Math.ceil(state.camera1X + visible.width + cullBuffer));
+    const minZ = Math.max(0, Math.floor(Core.state.camera1Y));
+    const maxZ = Math.min(Core.WORLD_Z_MAX, Math.ceil(Core.state.camera1Y + visible.height + cullBuffer));
+    const minX = Math.max(0, Math.floor(Core.state.camera1X));
+    const maxX = Math.min(Core.WORLD_X_MAX, Math.ceil(Core.state.camera1X + visible.width + cullBuffer));
 
     for (let z = minZ; z < maxZ; z++) {
       for (let x = minX; x < maxX; x++) {
-        if (!isTileType(getBlockAt(x, focusY, z), TILE.DIRT)) continue;
-        queueRect(x, focusY, z, "#5B3A1E", 0, 0, TILE_SIZE, TILE_SIZE, -90);
+        if (!Util.isTileType(Util.getBlockAt(x, focusY, z), Core.TILE.DIRT)) continue;
+        queueRect(x, focusY, z, "#5B3A1E", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, -90);
 
         let nearestEmptyDist = Infinity;
         for (let d = 1; d <= Y_FADE_RANGE; d++) {
           const yNeg = focusY - d;
           const yPos = focusY + d;
-          if (yNeg >= 0 && isTileType(getBlockAt(x, yNeg, z), TILE.EMPTY)) { nearestEmptyDist = d; break; }
-          if (yPos < WORLD_Y_MAX && isTileType(getBlockAt(x, yPos, z), TILE.EMPTY)) { nearestEmptyDist = d; break; }
+          if (yNeg >= 0 && Util.isTileType(Util.getBlockAt(x, yNeg, z), Core.TILE.EMPTY)) { nearestEmptyDist = d; break; }
+          if (yPos < Core.WORLD_Y_MAX && Util.isTileType(Util.getBlockAt(x, yPos, z), Core.TILE.EMPTY)) { nearestEmptyDist = d; break; }
         }
         if (nearestEmptyDist !== Infinity) {
           const proximity = (Y_FADE_RANGE - nearestEmptyDist + 1) / (Y_FADE_RANGE + 1);
           const overlayAlpha = 0.08 + proximity * 0.30;
-          queueRect(x, focusY, z, "#000", 0, 0, TILE_SIZE, TILE_SIZE, -85, 0, overlayAlpha);
+          queueRect(x, focusY, z, "#000", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, -85, 0, overlayAlpha);
         }
       }
     }
@@ -171,38 +169,38 @@ export function drawForeground() {
 
   // ── Foods ──
 
-  state.foods.forEach(food => {
+  Core.state.foods.forEach(food => {
     if (food && entityVisible(food.y)) {
-      queueRect(food.x, food.y, food.z, "green", 5, 5, TILE_SIZE - 10, TILE_SIZE - 10, 20);
+      queueRect(food.x, food.y, food.z, "green", 5, 5, Core.TILE_SIZE - 10, Core.TILE_SIZE - 10, 20);
     }
   });
 
   // ── Colonies ──
 
-  state.colonies.forEach(col => {
-    queueRect(col.nest.x, col.nest.y, col.nest.z, "gray", 0, 0, TILE_SIZE, TILE_SIZE, 10, 0, distanceAlpha(col.nest.y, 0.2));
-    queueRect(col.nest.sX, col.nest.sY, col.nest.sZ ?? col.nest.z, "purple", 0, 0, TILE_SIZE, TILE_SIZE, 11, 0, distanceAlpha(col.nest.sY, 0.2));
+  Core.state.colonies.forEach(col => {
+    queueRect(col.nest.x, col.nest.y, col.nest.z, "gray", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, 10, 0, distanceAlpha(col.nest.y, 0.2));
+    queueRect(col.nest.sX, col.nest.sY, col.nest.sZ ?? col.nest.z, "purple", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, 11, 0, distanceAlpha(col.nest.sY, 0.2));
 
     if (entityVisible(col.player.y)) {
-      queueCircle(col.player.x, col.player.y, col.player.z, col.color, TILE_SIZE / 2 - 2, 50, 0.45);
+      queueCircle(col.player.x, col.player.y, col.player.z, col.color, Core.TILE_SIZE / 2 - 2, 50, 0.45);
       if (col.player.carrying) {
         queueRect(col.player.x, col.player.y, col.player.z,
-          isTileType(col.player.carrying, TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 80, 0.45);
+          Util.isTileType(col.player.carrying, Core.TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 80, 0.45);
       }
     }
 
     col.workers.forEach(w => {
       if (!entityVisible(w.y)) return;
-      queueCircle(w.x, w.y, w.z, col.color, TILE_SIZE / 2 - 3, 40, 0.45);
+      queueCircle(w.x, w.y, w.z, col.color, Core.TILE_SIZE / 2 - 3, 40, 0.45);
       if (w.carrying) {
         queueRect(w.x, w.y, w.z,
-          isTileType(w.carrying, TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 70, 0.45);
+          Util.isTileType(w.carrying, Core.TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 70, 0.45);
       }
     });
 
     col.soldiers.forEach(ant => {
       if (entityVisible(ant.y)) {
-        queueCircle(ant.x, ant.y, ant.z, col.color, TILE_SIZE * 0.45, 45, 0.45);
+        queueCircle(ant.x, ant.y, ant.z, col.color, Core.TILE_SIZE * 0.45, 45, 0.45);
       }
     });
 
@@ -211,22 +209,22 @@ export function drawForeground() {
       if (egg.carry) {
         queueRect(egg.x, egg.y, egg.z, "white", 4, 4, 6, 6, 65, 0.45);
       } else {
-        queueRect(egg.x, egg.y, egg.z, "white", 5, 5, TILE_SIZE - 10, TILE_SIZE - 10, 15, 0.45);
+        queueRect(egg.x, egg.y, egg.z, "white", 5, 5, Core.TILE_SIZE - 10, Core.TILE_SIZE - 10, 15, 0.45);
       }
     });
   });
 
   // ── Spiders ──
 
-  state.spiders.forEach(s => {
+  Core.state.spiders.forEach(s => {
     if (entityVisible(s.y)) {
-      queueRect(s.x, s.y, s.z, s.timer > 0 ? "white" : "darkblue", 0, 0, TILE_SIZE, TILE_SIZE, 60, 0.45);
+      queueRect(s.x, s.y, s.z, s.timer > 0 ? "white" : "darkblue", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, 60, 0.45);
     }
   });
 
   // ── Skulls ──
 
-  state.skulls.forEach(sk => {
+  Core.state.skulls.forEach(sk => {
     if (entityVisible(sk.y)) {
       queueText(sk.x, sk.y, sk.z, "\u{1F480}", "white", 90, 0.45);
     }
@@ -240,18 +238,18 @@ export function drawForeground() {
 }
 
 export function drawDebug() {
-  const ctx = state.dbgCtx;
+  const ctx = Core.state.dbgCtx;
   clearDebug();
   ctx.save();
-  ctx.translate(-state.camera1X * TILE_SIZE, -state.camera1Y * TILE_SIZE);
+  ctx.translate(-Core.state.camera1X * Core.TILE_SIZE, -Core.state.camera1Y * Core.TILE_SIZE);
 
-  state.colonies.forEach(col => {
+  Core.state.colonies.forEach(col => {
     col.workers.forEach(w => {
       if (w.path) {
-        ctx.fillStyle = hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
+        ctx.fillStyle = Util.hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
         w.path.forEach(next => {
           const t = worldToScreen(next.x, next.y, next.z);
-          ctx.fillRect(t.sx, t.sy, TILE_SIZE, TILE_SIZE);
+          ctx.fillRect(t.sx, t.sy, Core.TILE_SIZE, Core.TILE_SIZE);
         });
       }
     });
@@ -261,5 +259,5 @@ export function drawDebug() {
 }
 
 export function clearDebug() {
-  state.dbgCtx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
+  Core.state.dbgCtx.clearRect(0, 0, Core.state.canvasWidth, Core.state.canvasHeight);
 }
