@@ -14,9 +14,23 @@ export function initCanvases() {
   resizeCanvasesToViewport();
 }
 
-export function worldToScreen(wx, wy, wz) {
-  if (Core.state.currentView === 'nest') {
+export function worldToScreenView(wx, wy, wz, view) {
+    if (view === 'nest') {
+        return worldToScreen(wx, wy, wz, 'XZ');
+    } else if (view === 'surface') {
+        return worldToScreen(wx, wy, wz, 'YZ');
+    }
+    return worldToScreen(wx, wy, wz, 'YZ');
+}
+
+export function worldToScreen(wx, wy, wz, transform) {
+  if (transform === 'XZ') {
+    // For nest view: X horizontal, Z vertical
     return { sx: wx * Core.TILE_SIZE, sy: wz * Core.TILE_SIZE };
+  }
+  else if (transform === 'YZ') {
+    // For surface/overworld view: Y horizontal, X vertical (match previous layout)
+    return { sx: wy * Core.TILE_SIZE, sy: wx * Core.TILE_SIZE };
   }
   return { sx: wy * Core.TILE_SIZE, sy: wx * Core.TILE_SIZE };
 }
@@ -94,7 +108,7 @@ export function drawForeground() {
   };
 
   const queueRect = (wx, wy, wz, color, ox, oy, w, h, layerBias, depthOffset = 0, alpha = 1) => {
-    const p = worldToScreen(wx, wy, wz);
+    const p = worldToScreenView(wx, wy, wz, Core.state.currentView);
     queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
       ctx.fillStyle = color;
       ctx.fillRect(p.sx + ox, p.sy + oy, w, h);
@@ -102,7 +116,7 @@ export function drawForeground() {
   };
 
   const queueCircle = (wx, wy, wz, color, radius, layerBias, depthOffset = 0, alpha = 1) => {
-    const p = worldToScreen(wx, wy, wz);
+    const p = worldToScreenView(wx, wy, wz, Core.state.currentView);
     queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -112,7 +126,7 @@ export function drawForeground() {
   };
 
   const queueText = (wx, wy, wz, text, color, layerBias, depthOffset = 0, alpha = 1) => {
-    const p = worldToScreen(wx, wy, wz);
+    const p = worldToScreenView(wx, wy, wz, Core.state.currentView);
     queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
       ctx.fillStyle = color;
       ctx.fillText(text, p.sx, p.sy);
@@ -248,7 +262,7 @@ export function drawDebug() {
       if (w.path) {
         ctx.fillStyle = Util.hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
         w.path.forEach(next => {
-          const t = worldToScreen(next.x, next.y, next.z);
+          const t = worldToScreenView(next.x, next.y, next.z, Core.state.currentView);
           ctx.fillRect(t.sx, t.sy, Core.TILE_SIZE, Core.TILE_SIZE);
         });
       }
@@ -260,4 +274,94 @@ export function drawDebug() {
 
 export function clearDebug() {
   Core.state.dbgCtx.clearRect(0, 0, Core.state.canvasWidth, Core.state.canvasHeight);
+}
+
+// ─── Mini-map ─────────────────────────────────────────────────
+
+export function drawMiniMap() {
+  const canvas = Core.state.miniMapCanvas;
+  const ctx = Core.state.miniMapCtx;
+  if (!canvas || !ctx) return;
+
+  const cw = canvas.width;
+  const ch = canvas.height;
+  ctx.save();
+  ctx.clearRect(0, 0, cw, ch);
+
+  const tileW = cw / Core.WORLD_Y_MAX;
+  const tileH = ch / Core.WORLD_X_MAX;
+
+  // Helper to convert world coords -> mini-map coords using worldToScreen orientation
+  const toMini = (wx, wy, wz) => {
+    const p = worldToScreen(wx, wy, wz, "XY");
+    return {
+      x: (p.sx / Core.TILE_SIZE) * tileW,
+      y: (p.sy / Core.TILE_SIZE) * tileH
+    };
+  };
+
+  // Draw terrain (surface z=1)
+  for (let y = 0; y < Core.WORLD_Y_MAX; y++) {
+    for (let x = 0; x < Core.WORLD_X_MAX; x++) {
+      const t = Util.getBlockAt(x, y, 1);
+      if (Util.isTileType(t, Core.TILE.DIRT)) {
+        const m = toMini(x, y, 1);
+        ctx.fillStyle = '#5B3A1E';
+        ctx.fillRect(Math.floor(m.x), Math.floor(m.y), Math.ceil(tileW), Math.ceil(tileH));
+      }
+    }
+  }
+
+  // Foods
+  ctx.fillStyle = 'green';
+  Core.state.foods.forEach(food => {
+    const m = toMini(food.x, food.y, food.z);
+    ctx.fillRect(m.x + tileW * 0.2, m.y + tileH * 0.2, Math.max(1, tileW * 0.6), Math.max(1, tileH * 0.6));
+  });
+
+  // Colonies (nests + players + ants)
+  Core.state.colonies.forEach(col => {
+    // nest
+    const mn = toMini(col.nest.x, col.nest.y, col.nest.z);
+    ctx.fillStyle = col.color || 'white';
+    ctx.fillRect(mn.x, mn.y, Math.max(1, tileW * 1.5), Math.max(1, tileH * 1.5));
+
+    // player
+    if (col.player) {
+      const mp = toMini(col.player.x, col.player.y, col.player.z);
+      ctx.fillStyle = col.color || 'white';
+      ctx.beginPath();
+      ctx.arc(mp.x, mp.y, Math.max(1, Math.min(tileW, tileH) * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // workers
+    ctx.fillStyle = col.color || 'white';
+    col.workers.forEach(w => {
+      const mw = toMini(w.x, w.y, w.z);
+      ctx.fillRect(mw.x + tileW * 0.25, mw.y + tileH * 0.25, Math.max(1, tileW * 0.5), Math.max(1, tileH * 0.5));
+    });
+
+    // soldiers
+    col.soldiers.forEach(s => {
+      const ms = toMini(s.x, s.y, s.z);
+      ctx.fillRect(ms.x + tileW * 0.25, ms.y + tileH * 0.25, Math.max(1, tileW * 0.5), Math.max(1, tileH * 0.5));
+    });
+  });
+
+  // Spiders
+  ctx.fillStyle = 'darkblue';
+  Core.state.spiders.forEach(s => {
+    const ms = toMini(s.x, s.y, s.z);
+    ctx.fillRect(ms.x + tileW * 0.15, ms.y + tileH * 0.15, Math.max(1, tileW * 0.7), Math.max(1, tileH * 0.7));
+  });
+
+  // Skulls
+  ctx.fillStyle = 'white';
+  Core.state.skulls.forEach(sk => {
+    const msk = toMini(sk.x, sk.y, sk.z);
+    ctx.fillRect(msk.x + tileW * 0.4, msk.y + tileH * 0.4, Math.max(1, tileW * 0.2), Math.max(1, tileH * 0.2));
+  });
+
+  ctx.restore();
 }

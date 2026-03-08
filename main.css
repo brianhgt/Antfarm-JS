@@ -232,3 +232,25 @@ h3 {
 #viewToggle:hover {
   background: #666;
 }
+
+/* Mini-map styles: override global canvas absolute positioning
+   so the mini-map sits inside the sidebar. */
+#miniMapPanel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+#miniMap {
+  position: relative; /* override global canvas:absolute */
+  width: 100%;
+  height: auto;
+  max-width: 160px;
+  border: 1px solid #444;
+  background: #000;
+  box-sizing: border-box;
+  image-rendering: pixelated;
+  display: block;
+  margin-bottom: 6px;
+}

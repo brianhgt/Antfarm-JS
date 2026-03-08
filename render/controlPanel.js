@@ -24,6 +24,16 @@ export function initControlPanel(jq) {
     food:       document.getElementById('foodStat'),
   };
 
+  // Mini-map canvas (if present)
+  const miniCanvasEl = document.getElementById('miniMap');
+  if (miniCanvasEl) {
+    state.miniMapCanvas = miniCanvasEl;
+    state.miniMapCtx = (miniCanvasEl.getContext) ? miniCanvasEl.getContext('2d') : null;
+    if (state.miniMapCtx) {
+      state.miniMapCtx.clearRect(0, 0, miniCanvasEl.width, miniCanvasEl.height);
+    }
+  }
+
   // Panel expand / collapse
   let panelExpanded = false;
   const optionsPanel = jq('#optionsPanel');
@@ -102,6 +112,10 @@ export function initControlPanel(jq) {
     state.viewZoom = Math.min(MAX_ZOOM, +(state.viewZoom + ZOOM_STEP).toFixed(2));
     resizeCanvasesToViewport();
     clampCameraToViewBounds();
+  });
+
+  jq('#btn5').on('click', function () {
+    // Placeholder for 3D view toggle
   });
 }
 

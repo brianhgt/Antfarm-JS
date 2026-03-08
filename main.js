@@ -146,6 +146,7 @@ function gameLoop(timestamp) {
   update(delta);
   Render2D.drawBackground();
   Render2D.drawForeground();
+  Render2D.drawMiniMap();
   if (state.showDebugPaths) Render2D.drawDebug();
   requestAnimationFrame(gameLoop);
 }
