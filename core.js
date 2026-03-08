@@ -82,6 +82,7 @@ export const state = {
 
   // View / Camera
   currentView: 'nest',    // 'nest' | 'overworld'
+  renderMode: '2d',        // '2d' | '3d'
   currentNestIndex: 0,
   camera1X: 0,
   camera1Y: 0,

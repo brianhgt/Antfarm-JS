@@ -97,3 +97,10 @@ export function dispose3D() {
     renderer = null;
   }
 }
+
+export async function switchTo3D(container) {
+  state.bgCanvas.style.display = 'none';
+  state.fgCanvas.style.display = 'none';
+  state.dbgCanvas.style.display = 'none';
+  await init3DView(container);
+}

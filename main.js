@@ -7,6 +7,7 @@ import {
 } from './core.js';
 import * as Util from './util.js';
 import * as Render2D from './render/render2D.js';
+import * as Render3D from './render/render3D.js';
 import * as Controls from './render/controls.js';
 import * as ControlPanel from './render/controlPanel.js';
 import * as Player from './entities/player.js';
@@ -144,10 +145,16 @@ function gameLoop(timestamp) {
   );
 
   update(delta);
-  Render2D.drawBackground();
-  Render2D.drawForeground();
-  Render2D.drawMiniMap();
-  if (state.showDebugPaths) Render2D.drawDebug();
+
+  if (state.renderMode === '3d') {
+    Render3D.render3D();
+  } else {
+    Render2D.drawBackground();
+    Render2D.drawForeground();
+    Render2D.drawMiniMap();
+    if (state.showDebugPaths) Render2D.drawDebug();
+  }
+
   requestAnimationFrame(gameLoop);
 }
 

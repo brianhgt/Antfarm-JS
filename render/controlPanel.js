@@ -6,8 +6,9 @@ import {
   EGG_HATCH_TIME, SPIDER_COOLDOWN,
   state
 } from '../core.js';
-import { resizeCanvasesToViewport, clearDebug } from './render2D.js';
+import { resizeCanvasesToViewport, clearDebug, switchTo2D } from './render2D.js';
 import { clampCameraToViewBounds } from './controls.js';
+import { init3DView, dispose3D, switchTo3D } from './render3D.js';
 
 let els = {};
 
@@ -114,8 +115,20 @@ export function initControlPanel(jq) {
     clampCameraToViewBounds();
   });
 
-  jq('#btn5').on('click', function () {
-    // Placeholder for 3D view toggle
+  jq('#btn5').on('click', async function () {
+    if (state.renderMode === '2d') {
+      state.renderMode = '3d';
+      const container = document.createElement('div');
+      container.id = 'view3D';
+      state.viewportPanel.appendChild(container);
+      await switchTo3D(container);
+      jq(this).text('2D');
+    } else {
+      state.renderMode = '2d';
+      dispose3D();
+      switchTo2D();
+      jq(this).text('3D');
+    }
   });
 }
 

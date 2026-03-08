@@ -48,6 +48,7 @@ export function setupInput(inputCanvas) {
   // Wheel pan
   inputCanvas.addEventListener('wheel', function (e) {
     e.preventDefault();
+    if (state.renderMode === '3d') return;
     const scrollSensitivity = 0.1 / state.viewZoom;
     if (e.deltaX !== 0) state.camera1X += e.deltaX * scrollSensitivity;
     if (e.deltaY !== 0) state.camera1Y += e.deltaY * scrollSensitivity;
@@ -61,6 +62,7 @@ export function setupInput(inputCanvas) {
   let pointerDragged = false;
 
   inputCanvas.addEventListener('pointerdown', function (e) {
+    if (state.renderMode === '3d') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     activePointerId = e.pointerId;
     pointerStartX = e.clientX;
@@ -103,6 +105,7 @@ export function setupInput(inputCanvas) {
 
   // Click-to-move (player 1)
   inputCanvas.addEventListener('click', e => {
+    if (state.renderMode === '3d') return;
     if (state.suppressNextClick) {
       state.suppressNextClick = false;
       return;

@@ -14,6 +14,15 @@ export function initCanvases() {
   resizeCanvasesToViewport();
 }
 
+export function switchTo2D() {
+  const container = document.getElementById('view3D');
+  if (container) container.remove();
+  Core.state.bgCanvas.style.display = '';
+  Core.state.fgCanvas.style.display = '';
+  Core.state.dbgCanvas.style.display = '';
+  resizeCanvasesToViewport();
+}
+
 export function worldToScreenView(wx, wy, wz, view) {
     if (view === 'nest') {
         return worldToScreen(wx, wy, wz, 'XZ');
