@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Antfarm JS</title>
+<link rel="stylesheet" href="main.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.178.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.178.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="appShell">
+  <aside id="uiColumn">
+    <h3>🐜 Antfarm JS 🐜</h3>
+
+    <div id="controlPanel">
+      <button id="viewToggle">📡</button>
+      <button id="btn2">⚙️</button>
+      <button id="btn3">➖</button>
+      <button id="btn4">➕</button>
+    </div>
+
+    <div id="optionsPanel">
+      <div id="panelHeader">
+        <span>⚙️</span>
+      </div>
+      <div id="panelContent">
+        <div class="option-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="showPathsCheck">
+            Show Paths
+          </label>
+        </div>
+
+        <div class="option-group">
+          <label>Max Entities: <span id="maxEntitiesValue">2000</span></label>
+          <input type="range" id="maxEntitiesSlider" min="5" max="2000" value="2000" step="10">
+        </div>
+
+        <div class="option-group">
+          <label>Num Spiders: <span id="numSpidersValue">1</span></label>
+          <input type="range" id="numSpidersSlider" min="0" max="10" value="1" step="1">
+        </div>
+
+        <div class="option-group">
+          <label>Food Per Spawn: <span id="foodAmountValue">5</span></label>
+          <input type="range" id="foodAmountSlider" min="1" max="50" value="5" step="1">
+        </div>
+
+        <div class="option-group">
+          <label>Food Frequency: <span id="foodFrequencyValue">20</span></label>
+          <input type="range" id="foodFrequencySlider" min="1" max="60" value="20" step="1">
+          <div class="option-value">seconds: <span id="foodFrequencySecs">20.0</span></div>
+        </div>
+
+        <div id="panelStats">
+          <div class="stats-row">FPS: <span id="fpsStat">0</span></div>
+          <div class="stats-row">Zoom: <span id="zoomStat">100%</span></div>
+          <div class="stats-row">Ants: <span id="antsStat">0</span></div>
+          <div class="stats-row">Ant Deaths: <span id="antDeathsStat">0</span></div>
+          <div class="stats-row">Workers: <span id="workersStat">0</span></div>
+          <div class="stats-row">Soldiers: <span id="soldiersStat">0</span></div>
+          <div class="stats-row">Spiders: <span id="spidersStat">0</span></div>
+          <div class="stats-row">Food: <span id="foodStat">0</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main id="viewportPanel">
+    <canvas id="bg" class="gameCanvas"></canvas>
+    <canvas id="fg" class="gameCanvas"></canvas>
+    <canvas id="dbg" class="gameCanvas"></canvas>
+  </main>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
