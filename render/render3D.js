@@ -1,9 +1,10 @@
 // render/render3D.js — Three.js 3D renderer (reads shared game state)
 
 import {
+  DIRTY_STATE,
   TILE, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state
 } from '../core.js';
-import { getBlockAt, isTileType } from '../util.js';
+import * as Util from '../util.js';
 
 const SURFACE_Z = 1;
 const TERRAIN_REBUILD_MS = 450;
@@ -12,7 +13,7 @@ let THREE_NS = null;
 let scene, camera, renderer, controls;
 let resizeHandler = null;
 
-let blockMeshes = [];
+let blockMeshes = new Map();
 let entityMeshes = new Map();
 let terrainFocusY = 0;
 let lastTerrainRebuildMs = 0;
@@ -42,56 +43,98 @@ function worldToScene(x, y, z, focusY) {
 }
 
 function getBlockMaterial(block) {
-  if (isTileType(block, TILE.DIRT)) return dirtMat;
-  if (isTileType(block, TILE.ROCK)) return rockMat;
-  if (isTileType(block, TILE.NEST)) return nestMat;
-  if (isTileType(block, TILE.FOOD)) return foodMat;
-  if (isTileType(block, TILE.WATER)) return waterMat;
-  if (isTileType(block, TILE.EGG)) return eggMat;
+  if (Util.isTileType(block, TILE.DIRT)) return dirtMat;
+  if (Util.isTileType(block, TILE.ROCK)) return rockMat;
+  if (Util.isTileType(block, TILE.NEST)) return nestMat;
+  if (Util.isTileType(block, TILE.FOOD)) return foodMat;
+  if (Util.isTileType(block, TILE.WATER)) return waterMat;
+  if (Util.isTileType(block, TILE.EGG)) return eggMat;
   return null;
 }
 
 function clearTerrainMeshes() {
   blockMeshes.forEach(mesh => scene.remove(mesh));
-  blockMeshes = [];
+  blockMeshes.clear();
 }
 
-function rebuildTerrain() {
+function rebuildTerrain(isDirtyCheck = false) {
   if (!scene || !THREE_NS) return;
 
-  clearTerrainMeshes();
   terrainFocusY = getFocusY();
 
-  for (let x = 0; x < WORLD_X_MAX; x++) {
-    for (let y = 0; y < WORLD_Y_MAX; y++) {
-      const surfaceBlock = getBlockAt(x, y, SURFACE_Z);
-      const material = getBlockMaterial(surfaceBlock);
-      if (!material) continue;
+  if(isDirtyCheck) {
+    // Only rebuild if there are dirty tiles in the current focus slice
+    for (const [hash, dirtyType] of state.viewMapDirty) {
+      const surfaceBlock = Util.getBlockAtKey(hash);
+      const { x, y, z } = Util.getBlockLocationAtKey(hash);
 
-      const p = worldToScene(x, y, SURFACE_Z, terrainFocusY);
-      const mesh = new THREE_NS.Mesh(blockGeometry, material);
-      mesh.position.set(p.sx, p.sy, p.sz);
-      scene.add(mesh);
-      blockMeshes.push(mesh);
+      // Only care about changes on the surface slice at the current focus Y
+      if(z !== SURFACE_Z && y !== terrainFocusY) continue;
+
+      switch (dirtyType) {
+        case DIRTY_STATE.CREATE: {
+          const material = getBlockMaterial(surfaceBlock);
+          if (!material) continue;
+          const p = worldToScene(x, y, z, terrainFocusY);
+          const mesh = new THREE_NS.Mesh(blockGeometry, material);
+          mesh.position.set(p.sx, p.sy, p.sz);
+          scene.add(mesh);
+          blockMeshes.set(hash, mesh);
+          break;
+        }
+
+        case DIRTY_STATE.UPDATE: {
+          const materialUpdate = getBlockMaterial(surfaceBlock);
+          if (!materialUpdate) continue;
+          const updateMesh = blockMeshes.get(hash);
+          if (updateMesh) updateMesh.material = materialUpdate;
+          break;
+        }
+
+        case DIRTY_STATE.DELETE: {
+          const deleteMesh = blockMeshes.get(hash);
+          if (!deleteMesh) continue;
+          blockMeshes.delete(hash);
+          scene.remove(deleteMesh);
+          break;
+        }
+      }
+    }
+  }
+  else {
+    clearTerrainMeshes();
+    for (let x = 0; x < WORLD_X_MAX; x++) {
+      for (let y = 0; y < WORLD_Y_MAX; y++) {
+        const surfaceBlock = Util.getBlockAt(x, y, SURFACE_Z);
+        const material = getBlockMaterial(surfaceBlock);
+        if (!material) continue;
+
+        const p = worldToScene(x, y, SURFACE_Z, terrainFocusY);
+        const mesh = new THREE_NS.Mesh(blockGeometry, material);
+        mesh.position.set(p.sx, p.sy, p.sz);
+        scene.add(mesh);
+        blockMeshes.set(Util.get3dHash(x, y, SURFACE_Z), mesh);
+      }
+    }
+
+    for (let x = 0; x < WORLD_X_MAX; x++) {
+      for (let z = 0; z < WORLD_Z_MAX; z++) {
+        if (z === SURFACE_Z) continue;
+
+        const sliceBlock = Util.getBlockAt(x, terrainFocusY, z);
+        const material = getBlockMaterial(sliceBlock);
+        if (!material) continue;
+
+        const p = worldToScene(x, terrainFocusY, z, terrainFocusY);
+        const mesh = new THREE_NS.Mesh(blockGeometry, material);
+        mesh.position.set(p.sx, p.sy, p.sz);
+        scene.add(mesh);
+        blockMeshes.set(Util.get3dHash(x, terrainFocusY, z), mesh);
+      }
     }
   }
 
-  for (let x = 0; x < WORLD_X_MAX; x++) {
-    for (let z = 0; z < WORLD_Z_MAX; z++) {
-      if (z === SURFACE_Z) continue;
-
-      const sliceBlock = getBlockAt(x, terrainFocusY, z);
-      const material = getBlockMaterial(sliceBlock);
-      if (!material) continue;
-
-      const p = worldToScene(x, terrainFocusY, z, terrainFocusY);
-      const mesh = new THREE_NS.Mesh(blockGeometry, material);
-      mesh.position.set(p.sx, p.sy, p.sz);
-      scene.add(mesh);
-      blockMeshes.push(mesh);
-    }
-  }
-
+  state.viewMapDirty.clear();
   lastTerrainRebuildMs = performance.now();
 }
 
@@ -171,10 +214,11 @@ function syncEntityMeshes() {
 function ensureTerrainFresh() {
   const focusY = getFocusY();
   const now = performance.now();
-  if ((focusY !== terrainFocusY || (now - lastTerrainRebuildMs > TERRAIN_REBUILD_MS)
-       && state.viewMapDirty)) {
+  if (focusY !== terrainFocusY) {
     rebuildTerrain();
-    state.viewMapDirty = false;
+  }
+  else if (state.viewMapDirty.size > 0) {
+    rebuildTerrain(true);
   }
 }
 

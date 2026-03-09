@@ -59,10 +59,17 @@ export const ZOOM_STEP = 0.1;
 // This single object replaces all window.* assignments and
 // jQuery-closure variables from the old codebase.
 
+export const DIRTY_STATE = {
+  CREATE: 'CREATE',
+  UPDATE: 'UPDATE',
+  DELETE: 'DELETE'
+};
+
 export const state = {
   // World
   viewMap: [],            // 3D array [x][y][z]
-  viewMapDirty: false,   // Set to true when blocks change andview needs rebuild
+  viewMapDirty: new Map(), // Map keyed by tile hash -> true when tile changed
+  foodDirty: new Map(),    // Map keyed by tile hash -> true if food/egg changed
 
   // Entities
   colonies: [],

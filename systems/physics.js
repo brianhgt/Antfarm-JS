@@ -1,15 +1,15 @@
 // systems/physics.js — Tile damage and food spawning
 
-import { TILE, WORLD_X_MAX, WORLD_Y_MAX, state } from '../core.js';
+import * as Core from '../core.js';
 import { isDiggableTile, getBlockAt, setBlock, get3dHash } from '../util.js';
 
 export function damageTileAt(x, y, z, amount = 10) {
   const tile = getBlockAt(x, y, z);
   if (!isDiggableTile(tile)) return false;
-  state.viewMapDirty = true;
   const nextHp = (tile.hp ?? 0) - amount;
   if (nextHp <= 0) {
-    setBlock(x, y, z, TILE.EMPTY);
+    setBlock(x, y, z, Core.TILE.EMPTY);
+    Core.state.viewMapDirty.set(get3dHash(x, y, z), Core.DIRTY_STATE.DELETE);
     return true;
   }
   setBlock(x, y, z, { type: tile.type, hp: nextHp });
@@ -17,15 +17,17 @@ export function damageTileAt(x, y, z, amount = 10) {
 }
 
 export function spawnFood(delta) {
-  state.foodSpawnTimer -= delta;
-  if (state.foodSpawnTimer <= 0) {
-    state.foodSpawnTimer = state.foodSpawnInterval;
-    for (let i = 0; i < state.foodSpawnAmount; i++) {
-      const fx = Math.floor(Math.random() * WORLD_X_MAX);
-      const fy = Math.floor(Math.random() * WORLD_Y_MAX);
+  Core.state.foodSpawnTimer -= delta;
+  if (Core.state.foodSpawnTimer <= 0) {
+    Core.state.foodSpawnTimer = Core.state.foodSpawnInterval;
+    for (let i = 0; i < Core.state.foodSpawnAmount; i++) {
+      const fx = Math.floor(Math.random() * Core.WORLD_X_MAX);
+      const fy = Math.floor(Math.random() * Core.WORLD_Y_MAX);
       const fz = 0;
-      state.foods.set(get3dHash(fx, fy, fz), { x: fx, y: fy, z: fz, carry: false });
+      const fh = get3dHash(fx, fy, fz);
+      Core.state.foods.set(fh, { x: fx, y: fy, z: fz, carry: false });
+      Core.state.foodDirty.set(fh, Core.DIRTY_STATE.CREATE);
     }
-    state.viewMapDirty = true;
+    // overall spawn will have already marked individual tiles dirty
   }
 }

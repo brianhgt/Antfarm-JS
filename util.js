@@ -46,7 +46,8 @@ export function isDiggableTile(tileLike) {
 // ─── Hashing & random ─────────────────────────────────────────
 
 export function get3dHash(x, y, z) {
-  return z * (WORLD_X_MAX * WORLD_Y_MAX) + y * WORLD_X_MAX + x;
+  //return z * (WORLD_X_MAX * WORLD_Y_MAX) + y * WORLD_X_MAX + x;
+  return `${x},${y},${z}`;
 }
 
 export function getRandMap(map) {
@@ -63,6 +64,16 @@ export function isValidBlock(x, y, z) {
 
 export function isMoveOutsideWorld(x, y, z) {
   return x < 0 || x >= WORLD_X_MAX || y < 0 || y >= WORLD_Y_MAX || z < 0 || z >= WORLD_Z_MAX;
+}
+
+export function getBlockLocationAtKey(key) {
+  const [x, y, z] = key.split(',').map(Number);
+  return { x, y, z };
+}
+
+export function getBlockAtKey(key) {
+  const { x, y, z } = getBlockLocationAtKey(key);
+  return getBlockAt(x, y, z);
 }
 
 export function getBlockAt(x, y, z) {

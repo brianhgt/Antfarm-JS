@@ -2,7 +2,7 @@
 
 import {
   TILE, ANT_TYPE, ANT_SPEED, PATH_TOLERANCE, WANDER_DIST,
-  EGG_HATCH_TIME, state
+  EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
 import {
   tileType, isSolidTile, isDiggableTile, getBlockAt, setBlock,
@@ -36,7 +36,8 @@ export function spawnEggNearNest(col, type = ANT_TYPE.WORKER) {
        tileType(getBlockAt(ex, ey, ez)) === TILE.EMPTY)) {
     if (countTotalEntities() >= state.maxEntities) return;
     setBlock(ex, ey, ez, TILE.EMPTY);
-    state.viewMapDirty = true;
+    const eggHash = get3dHash(ex, ey, ez);
+    state.foodDirty.set(eggHash, DIRTY_STATE.CREATE);
     const egg = { x: ex, y: ey, z: ez, type, timer: EGG_HATCH_TIME, carry: false };
     if (col.eggs instanceof Map) {
       col.eggs.set(get3dHash(ex, ey, ez), egg);
@@ -83,7 +84,11 @@ export function hatchEggs(col, idx, delta) {
     }
   });
   keysToDelete.forEach(key => col.eggs.delete(key));
-  //state.viewMapDirty = true;
+  keysToDelete.forEach(key => {
+    if (typeof key === 'string') {
+      state.foodDirty.set(key, DIRTY_STATE.DELETE);
+    }
+  });
 }
 
 // ─── Worker AI ────────────────────────────────────────────────
@@ -102,9 +107,11 @@ export function updateWorkers(col, delta) {
         ant.pathIndex = 0;
         if (!ant.path && isSolidTile(getBlockAt(
               Math.floor(target.x), Math.floor(target.y), Math.floor(target.z)))) {
-          state.foods.delete(get3dHash(
-            Math.floor(target.x), Math.floor(target.y), Math.floor(target.z)
-          ));
+            const targetHash = get3dHash(
+              Math.floor(target.x), Math.floor(target.y), Math.floor(target.z)
+            );
+            state.foods.delete(targetHash);
+            state.foodDirty.set(targetHash, DIRTY_STATE.DELETE);
         }
       } else {
         const wander = getRandomNearbyEmptyTile(
@@ -159,7 +166,9 @@ export function updateWorkers(col, delta) {
     // Pick up food
     if (!ant.carrying && state.foods.has(get3dHash(antX, antY, antZ))) {
       ant.carrying = TILE.FOOD;
-      state.foods.delete(get3dHash(antX, antY, antZ));
+      const foodHash = get3dHash(antX, antY, antZ);
+      state.foods.delete(foodHash);
+      state.foodDirty.set(foodHash, DIRTY_STATE.DELETE);
       ant.target = { x: col.nest.x, y: col.nest.y, z: col.nest.z };
       ant.path = findPath(antX, antY, antZ, col.nest.x, col.nest.y, col.nest.z, PATH_TOLERANCE);
       ant.pathIndex = 0;
