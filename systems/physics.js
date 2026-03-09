@@ -6,6 +6,7 @@ import { isDiggableTile, getBlockAt, setBlock, get3dHash } from '../util.js';
 export function damageTileAt(x, y, z, amount = 10) {
   const tile = getBlockAt(x, y, z);
   if (!isDiggableTile(tile)) return false;
+  state.viewMapDirty = true;
   const nextHp = (tile.hp ?? 0) - amount;
   if (nextHp <= 0) {
     setBlock(x, y, z, TILE.EMPTY);
@@ -25,5 +26,6 @@ export function spawnFood(delta) {
       const fz = 0;
       state.foods.set(get3dHash(fx, fy, fz), { x: fx, y: fy, z: fz, carry: false });
     }
+    state.viewMapDirty = true;
   }
 }

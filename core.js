@@ -62,6 +62,7 @@ export const ZOOM_STEP = 0.1;
 export const state = {
   // World
   viewMap: [],            // 3D array [x][y][z]
+  viewMapDirty: false,   // Set to true when blocks change andview needs rebuild
 
   // Entities
   colonies: [],

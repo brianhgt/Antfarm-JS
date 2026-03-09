@@ -36,6 +36,7 @@ export function spawnEggNearNest(col, type = ANT_TYPE.WORKER) {
        tileType(getBlockAt(ex, ey, ez)) === TILE.EMPTY)) {
     if (countTotalEntities() >= state.maxEntities) return;
     setBlock(ex, ey, ez, TILE.EMPTY);
+    state.viewMapDirty = true;
     const egg = { x: ex, y: ey, z: ez, type, timer: EGG_HATCH_TIME, carry: false };
     if (col.eggs instanceof Map) {
       col.eggs.set(get3dHash(ex, ey, ez), egg);
@@ -82,6 +83,7 @@ export function hatchEggs(col, idx, delta) {
     }
   });
   keysToDelete.forEach(key => col.eggs.delete(key));
+  //state.viewMapDirty = true;
 }
 
 // ─── Worker AI ────────────────────────────────────────────────

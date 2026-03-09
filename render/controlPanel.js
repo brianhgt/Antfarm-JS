@@ -8,7 +8,7 @@ import {
 } from '../core.js';
 import { resizeCanvasesToViewport, clearDebug, switchTo2D } from './render2D.js';
 import { clampCameraToViewBounds } from './controls.js';
-import { init3DView, dispose3D, switchTo3D } from './render3D.js';
+import { dispose3D, switchTo3D } from './render3D.js';
 
 let els = {};
 
