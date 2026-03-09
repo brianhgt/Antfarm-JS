@@ -12,6 +12,16 @@ import { dispose3D, switchTo3D } from './render3D.js';
 
 let els = {};
 
+function bindToggleButton(jq, selector, stateKey) {
+  const button = jq(selector);
+  const sync = () => button.toggleClass('active', !!state[stateKey]);
+  button.on('click', function () {
+    state[stateKey] = !state[stateKey];
+    sync();
+  });
+  sync();
+}
+
 export function initControlPanel(jq) {
   // Stats DOM elements
   els = {
@@ -57,6 +67,10 @@ export function initControlPanel(jq) {
     clearDebug();
     state.showDebugPaths = jq(this).is(':checked');
   });
+
+  bindToggleButton(jq, '#trailPheromoneBtn', 'showTrailPheromones');
+  bindToggleButton(jq, '#footprintPheromoneBtn', 'showFootprintPheromones');
+  bindToggleButton(jq, '#alarmPheromoneBtn', 'showAlarmPheromones');
 
   jq('#maxEntitiesSlider').on('input', function () {
     state.maxEntities = parseInt(jq(this).val());

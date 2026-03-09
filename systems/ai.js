@@ -9,7 +9,7 @@ import {
   get3dHash, getRandMap, findPath, getRandomNearbyEmptyTile, isValidBlock,
   isMoveOutsideWorld
 } from '../util.js';
-import { damageTileAt } from './physics.js';
+import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from './physics.js';
 import * as Entity from '../entities/entity.js';
 
 // ─── Entity counting ──────────────────────────────────────────
@@ -82,7 +82,38 @@ export function hatchEggs(col, idx, delta) {
 
 // ─── Worker AI ────────────────────────────────────────────────
 
-export function updateWorkers(col, delta) {
+function updateWorkerPheromoneTrail(ant, colonyIndex) {
+  const antX = Math.floor(ant.x);
+  const antY = Math.floor(ant.y);
+  const antZ = Math.floor(ant.z);
+  const currentTileKey = get3dHash(antX, antY, antZ);
+
+  if (ant.lastPheromoneTile === currentTileKey) return;
+  ant.lastPheromoneTile = currentTileKey;
+
+  if (ant.carrying === TILE.FOOD) {
+    depositPheromone('trail', colonyIndex, antX, antY, antZ);
+    return;
+  }
+
+  if (!ant.carrying) {
+    depositPheromone('footprint', colonyIndex, antX, antY, antZ);
+  }
+}
+
+function updateAlarmPheromone(entity, colonyIndex) {
+  const antX = Math.floor(entity.x);
+  const antY = Math.floor(entity.y);
+  const antZ = Math.floor(entity.z);
+  const currentTileKey = get3dHash(antX, antY, antZ);
+
+  if (entity.lastAlarmPheromoneTile === currentTileKey) return;
+  if (depositAlarmPheromoneIfThreatened(colonyIndex, antX, antY, antZ)) {
+    entity.lastAlarmPheromoneTile = currentTileKey;
+  }
+}
+
+export function updateWorkers(col, colonyIndex, delta) {
   col.workers.forEach(ant => {
     if (!ant.path) {
       if (state.foods.size > 0) {
@@ -147,6 +178,9 @@ export function updateWorkers(col, delta) {
     const antY = Math.floor(ant.y);
     const antZ = Math.floor(ant.z);
 
+    updateWorkerPheromoneTrail(ant, colonyIndex);
+    updateAlarmPheromone(ant, colonyIndex);
+
     // Dig
     if (isDiggableTile(getBlockAt(antX, antY, antZ))) {
       damageTileAt(antX, antY, antZ, 10);
@@ -177,7 +211,7 @@ export function updateWorkers(col, delta) {
 
 // ─── Soldier AI ───────────────────────────────────────────────
 
-export function updateSoldiers(col, delta) {
+export function updateSoldiers(col, colonyIndex, delta) {
   col.soldiers.forEach(ant => {
     if (!ant.path) {
       const wander = getRandomNearbyEmptyTile(
@@ -222,6 +256,8 @@ export function updateSoldiers(col, delta) {
     const antX = Math.floor(ant.x);
     const antY = Math.floor(ant.y);
     const antZ = Math.floor(ant.z);
+
+    updateAlarmPheromone(ant, colonyIndex);
 
     // Dig
     if (isDiggableTile(getBlockAt(antX, antY, antZ))) {

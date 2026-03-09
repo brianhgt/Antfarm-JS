@@ -13,7 +13,7 @@ import * as ControlPanel from './render/controlPanel.js';
 import * as Player from './entities/player.js';
 import { updateSpiders, updateSkulls } from './entities/enemy.js';
 import * as AI from './systems/ai.js';
-import { spawnFood } from './systems/physics.js';
+import { spawnFood, updatePheromones } from './systems/physics.js';
 
 const jq = jQuery.noConflict();
 
@@ -43,9 +43,27 @@ function initWorld() {
 
   // Colonies
   state.colonies = [
-    { name: "A", color: "black", nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null },
-    { name: "B", color: "red",   nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null }
+    {
+      index: 0,
+      name: "A",
+      color: "black",
+      pheromoneColors: { trail: '#f7a531', footprint: '#57c7ff', alarm: '#ff4d5a' },
+      pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
+      nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null
+    },
+    {
+      index: 1,
+      name: "B",
+      color: "red",
+      pheromoneColors: { trail: '#8dff5a', footprint: '#b17cff', alarm: '#ff79c6' },
+      pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
+      nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null
+    }
   ];
+
+  state.trailPheromoneMaps = state.colonies.map(col => col.pheromones.trail);
+  state.alarmPheromoneMaps = state.colonies.map(col => col.pheromones.alarm);
+  state.footprintPheromoneMaps = state.colonies.map(col => col.pheromones.footprint);
 
   // Spiders
   for (let i = 0; i < state.numSpiders; i++) {
@@ -115,9 +133,11 @@ function update(delta) {
 
   state.colonies.forEach((col, idx) => {
     AI.hatchEggs(col, idx, delta);
-    AI.updateWorkers(col, delta);
-    AI.updateSoldiers(col, delta);
+    AI.updateWorkers(col, idx, delta);
+    AI.updateSoldiers(col, idx, delta);
   });
+
+  updatePheromones(delta);
 
   updateSpiders(delta);
   updateSkulls();

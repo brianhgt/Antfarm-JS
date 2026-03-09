@@ -181,6 +181,34 @@ h3 {
   gap: 5px;
 }
 
+.toggle-button-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.toggle-btn {
+  background: #3a3a3a;
+  color: #bbb;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: monospace;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.toggle-btn:hover {
+  background: #474747;
+}
+
+.toggle-btn.active {
+  color: #fff;
+  border-color: #88ff88;
+  background: #245224;
+}
+
 .option-group label {
   font-size: 12px;
   color: #aaa;

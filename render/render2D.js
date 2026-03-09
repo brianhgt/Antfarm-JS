@@ -4,6 +4,12 @@ import * as Core from '../core.js';
 import * as Util from '../util.js';
 import * as Controls from './controls.js';
 
+const PHEROMONE_RENDER_CONFIG = [
+  { type: 'trail', enabledKey: 'showTrailPheromones' },
+  { type: 'footprint', enabledKey: 'showFootprintPheromones' },
+  { type: 'alarm', enabledKey: 'showAlarmPheromones' }
+];
+
 // ─── Canvas setup ──────────────────────────────────────────────
 
 export function initCanvases() {
@@ -148,6 +154,21 @@ export function drawForeground() {
     const dist = Math.abs(Math.floor(y) - focusY);
     return Math.max(minAlpha, 1 - Math.min(1, dist / Y_FADE_RANGE));
   };
+  const pheromoneVisible = (x, y, z) => {
+    if (isNest) {
+      return Math.floor(y) === focusY &&
+        x >= Math.floor(Core.state.camera1X) - cullBuffer &&
+        x <= Math.ceil(Core.state.camera1X + visible.width + cullBuffer) &&
+        z >= Math.floor(Core.state.camera1Y) - cullBuffer &&
+        z <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
+    }
+
+    return z === 0 &&
+      y >= Math.floor(Core.state.camera1X) - cullBuffer &&
+      y <= Math.ceil(Core.state.camera1X + visible.width + cullBuffer) &&
+      x >= Math.floor(Core.state.camera1Y) - cullBuffer &&
+      x <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
+  };
 
   // ── Terrain ──
 
@@ -189,6 +210,34 @@ export function drawForeground() {
       }
     }
   }
+
+  // ── Pheromones ──
+
+  PHEROMONE_RENDER_CONFIG.forEach(({ type, enabledKey }) => {
+    if (!Core.state[enabledKey]) return;
+
+    Core.state.colonies.forEach(col => {
+      const pheromoneMap = col.pheromones?.[type];
+      const color = col.pheromoneColors?.[type] ?? col.color;
+      if (!(pheromoneMap instanceof Map)) return;
+
+      pheromoneMap.forEach((strength, key) => {
+        if (strength <= Core.PHEROMONE_MIN_STRENGTH) return;
+        const { x, y, z } = Util.getBlockLocationAtKey(key);
+        if (!pheromoneVisible(x, y, z)) return;
+        queueRect(
+          x, y, z,
+          color,
+          3, 3,
+          Core.TILE_SIZE - 6,
+          Core.TILE_SIZE - 6,
+          -20,
+          0,
+          Math.min(1, strength)
+        );
+      });
+    });
+  });
 
   // ── Foods ──
 

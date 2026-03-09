@@ -47,6 +47,13 @@ export const PATH_TOLERANCE = 0.08;
 export const SPIDER_CAN_GO_BELOW = false;
 export const WANDER_DIST = 6;
 
+// Pheromone tuning
+export const PHEROMONE_FOOD_RADIUS = 6;
+export const PHEROMONE_FOOD_BONUS = 0.35;
+export const PHEROMONE_MIN_STRENGTH = 0.01;
+export const SPIDER_ALARM_RADIUS = 6;
+export const ENEMY_ANT_ALARM_RADIUS = 3;
+
 // ─── Render / Zoom Constants ───────────────────────────────────
 
 export const TILE_SIZE = 20;
@@ -80,17 +87,17 @@ export const state = {
   //Pheromones
   //Decay is: p(t) = p0 * (1 - decayRate) * t
   //spread = center * (1 - diffusion) + neighbors * (diffusion / numNeighbors)
-  trailPheromoneMap: new Map(), // Map keyed by tile hash -> pheromone strength
+  trailPheromoneMaps: [], // Array of colony pheromone maps keyed by tile hash -> strength
   trailPheromoneDecay: 0.01, // Amount to decay pheromones each tick
   trailPheromoneDiffusion: 0.02, // Amount to diffuse pheromones each tick
   trailPheromoneDeposit: 1.0, // Initial deposit amount of pheromones when placed
 
-  alarmPheromoneMap: new Map(), // Map keyed by tile hash -> pheromone strength
+  alarmPheromoneMaps: [], // Array of colony pheromone maps keyed by tile hash -> strength
   alarmPheromoneDecay: 0.3, // Amount to decay pheromones each tick
   alarmPheromoneDiffusion: 0.25, // Amount to diffuse pheromones each tick
   alarmPheromoneDeposit: 5.0, // Initial deposit amount of pheromones when placed
 
-  footprintPheromoneMap: new Map(), // Map keyed by tile hash -> pheromone strength
+  footprintPheromoneMaps: [], // Array of colony pheromone maps keyed by tile hash -> strength
   footprintPheromoneDecay: 0.2, // Amount to decay pheromones each tick
   footprintPheromoneDiffusion: 0.0, // Amount to diffuse pheromones each tick
   footprintPheromoneDeposit: 0.2, // Initial deposit amount of pheromones when placed
@@ -114,6 +121,9 @@ export const state = {
   camera1Y: 0,
   viewZoom: 1,
   showDebugPaths: false,
+  showTrailPheromones: true,
+  showAlarmPheromones: true,
+  showFootprintPheromones: true,
 
   // Input
   keys: {},

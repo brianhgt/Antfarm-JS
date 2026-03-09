@@ -8,8 +8,36 @@ import {
 import {
   isTileType, isDiggableTile, getBlockAt, setBlock, get3dHash
 } from '../util.js';
-import { damageTileAt } from '../systems/physics.js';
+import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from '../systems/physics.js';
 import { spawnEggNearNest } from '../systems/ai.js';
+
+function updatePlayerPheromoneTrail(player, colonyIndex) {
+  const tx = Math.floor(player.x);
+  const ty = Math.floor(player.y);
+  const tz = Math.floor(player.z);
+  const tileKey = get3dHash(tx, ty, tz);
+
+  if (player.lastPheromoneTile === tileKey) return;
+  player.lastPheromoneTile = tileKey;
+
+  if (player.carrying === TILE.FOOD) {
+    depositPheromone('trail', colonyIndex, tx, ty, tz);
+  } else if (!player.carrying) {
+    depositPheromone('footprint', colonyIndex, tx, ty, tz);
+  }
+}
+
+function updatePlayerAlarmPheromone(player, colonyIndex) {
+  const tx = Math.floor(player.x);
+  const ty = Math.floor(player.y);
+  const tz = Math.floor(player.z);
+  const tileKey = get3dHash(tx, ty, tz);
+
+  if (player.lastAlarmPheromoneTile === tileKey) return;
+  if (depositAlarmPheromoneIfThreatened(colonyIndex, tx, ty, tz)) {
+    player.lastAlarmPheromoneTile = tileKey;
+  }
+}
 
 export function updatePlayers(delta) {
   const { keys } = state;
@@ -91,6 +119,9 @@ export function updatePlayers(delta) {
     }
 
     const tx = Math.floor(player.x), ty = Math.floor(player.y), tz = Math.floor(player.z);
+
+    updatePlayerPheromoneTrail(player, idx);
+    updatePlayerAlarmPheromone(player, idx);
 
     // Dig
     if (isDiggableTile(getBlockAt(tx, ty, tz))) {
