@@ -10,6 +10,7 @@ import {
   isMoveOutsideWorld
 } from '../util.js';
 import { damageTileAt } from './physics.js';
+import * as Entity from '../entities/entity.js';
 
 // ─── Entity counting ──────────────────────────────────────────
 
@@ -67,19 +68,7 @@ export function hatchEggs(col, idx, delta) {
     if (!egg) return;
     egg.timer -= delta;
     if (egg.timer <= 0) {
-      if (countTotalEntities() < state.maxEntities) {
-        if (egg.type === ANT_TYPE.SOLDIER) {
-          col.soldiers.push({
-            x: egg.x + 0.5, y: egg.y + 0.5, z: egg.z + 0.5,
-            path: null, pathIndex: 0, colIdx: idx, type: ANT_TYPE.SOLDIER
-          });
-        } else {
-          col.workers.push({
-            x: egg.x + 0.5, y: egg.y + 0.5, z: egg.z + 0.5,
-            path: null, pathIndex: 0, colIdx: idx, type: ANT_TYPE.WORKER
-          });
-        }
-      }
+      Entity.addNewAnt(col, egg.type, egg.x, egg.y, egg.z);
       keysToDelete.push(key);
     }
   });

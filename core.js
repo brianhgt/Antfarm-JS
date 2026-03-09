@@ -77,6 +77,24 @@ export const state = {
   spiders: [],
   skulls: [],
 
+  //Pheromones
+  //Decay is: p(t) = p0 * (1 - decayRate) * t
+  //spread = center * (1 - diffusion) + neighbors * (diffusion / numNeighbors)
+  trailPheromoneMap: new Map(), // Map keyed by tile hash -> pheromone strength
+  trailPheromoneDecay: 0.01, // Amount to decay pheromones each tick
+  trailPheromoneDiffusion: 0.02, // Amount to diffuse pheromones each tick
+  trailPheromoneDeposit: 1.0, // Initial deposit amount of pheromones when placed
+
+  alarmPheromoneMap: new Map(), // Map keyed by tile hash -> pheromone strength
+  alarmPheromoneDecay: 0.3, // Amount to decay pheromones each tick
+  alarmPheromoneDiffusion: 0.25, // Amount to diffuse pheromones each tick
+  alarmPheromoneDeposit: 5.0, // Initial deposit amount of pheromones when placed
+
+  footprintPheromoneMap: new Map(), // Map keyed by tile hash -> pheromone strength
+  footprintPheromoneDecay: 0.2, // Amount to decay pheromones each tick
+  footprintPheromoneDiffusion: 0.0, // Amount to diffuse pheromones each tick
+  footprintPheromoneDeposit: 0.2, // Initial deposit amount of pheromones when placed
+
   // Counters
   spiderScore: 0,
   antDeaths: 0,
