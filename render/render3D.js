@@ -117,7 +117,7 @@ function upsertEntitySphere(id, x, y, z, color, radius) {
   }
 
   const p = worldToScene(x, y, z, terrainFocusY);
-  mesh.position.set(p.sx, p.sy + radius * 0.2, p.sz);
+  mesh.position.set(p.sx - 0.5, p.sy + 0.5 + radius * 0.2, p.sz - 0.5);
   mesh.scale.setScalar(radius * 2);
   mesh.userData.keep = true;
 }
