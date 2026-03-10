@@ -1,7 +1,7 @@
 // util.js — Pure utility functions (tile ops, hashing, pathfinding, color)
 
 import {
-  TILE, DEFAULT_TILE_HP, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state
+  TILE, DEFAULT_TILE_HP, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state, DIRTY_STATE
 } from './core.js';
 
 // ─── Tile helpers ──────────────────────────────────────────────
@@ -83,7 +83,21 @@ export function getBlockAt(x, y, z) {
 
 export function setBlock(x, y, z, tile) {
   if (!isValidBlock(x, y, z)) return;
-  state.viewMap[x][y][z] = normalizeTile(tile);
+  const prevTile = state.viewMap[x][y][z];
+  const nextTile = normalizeTile(tile);
+  state.viewMap[x][y][z] = nextTile;
+
+  const prevType = tileType(prevTile);
+  const nextType = tileType(nextTile);
+  const dirtyType = nextType === TILE.EMPTY
+    ? DIRTY_STATE.DELETE
+    : prevType === TILE.EMPTY
+      ? DIRTY_STATE.CREATE
+      : DIRTY_STATE.UPDATE;
+
+  if (prevType !== nextType || (prevTile?.hp ?? 0) !== (nextTile?.hp ?? 0)) {
+    state.viewMapDirty.set(get3dHash(x, y, z), dirtyType);
+  }
 }
 
 export function getViewMap() {

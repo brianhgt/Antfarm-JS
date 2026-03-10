@@ -10,6 +10,144 @@ const PHEROMONE_RENDER_CONFIG = [
   { type: 'alarm', enabledKey: 'showAlarmPheromones' }
 ];
 
+const NEST_Y_FADE_RANGE = 8;
+
+let surfaceTerrainCanvas = null;
+let surfaceTerrainCtx = null;
+let nestTerrainCanvas = null;
+let nestTerrainCtx = null;
+let surfaceTerrainBuilt = false;
+let nestTerrainBuilt = false;
+let nestTerrainDirty = true;
+let lastNestFocusY = -1;
+
+function createCacheCanvas(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function ensureTerrainCaches() {
+  const surfaceWidth = Core.WORLD_Y_MAX * Core.TILE_SIZE;
+  const surfaceHeight = Core.WORLD_X_MAX * Core.TILE_SIZE;
+  const nestWidth = Core.WORLD_X_MAX * Core.TILE_SIZE;
+  const nestHeight = Core.WORLD_Z_MAX * Core.TILE_SIZE;
+
+  if (!surfaceTerrainCanvas || surfaceTerrainCanvas.width !== surfaceWidth || surfaceTerrainCanvas.height !== surfaceHeight) {
+    surfaceTerrainCanvas = createCacheCanvas(surfaceWidth, surfaceHeight);
+    surfaceTerrainCtx = surfaceTerrainCanvas.getContext('2d');
+    surfaceTerrainBuilt = false;
+  }
+
+  if (!nestTerrainCanvas || nestTerrainCanvas.width !== nestWidth || nestTerrainCanvas.height !== nestHeight) {
+    nestTerrainCanvas = createCacheCanvas(nestWidth, nestHeight);
+    nestTerrainCtx = nestTerrainCanvas.getContext('2d');
+    nestTerrainBuilt = false;
+    nestTerrainDirty = true;
+  }
+}
+
+function getFocusY() {
+  return Math.floor(
+    (Core.state.colonies[Core.state.currentNestIndex]?.player?.y
+      ?? Core.state.colonies[0]?.player?.y) || 0
+  );
+}
+
+function clearSurfaceTile(x, y) {
+  surfaceTerrainCtx.clearRect(y * Core.TILE_SIZE, x * Core.TILE_SIZE, Core.TILE_SIZE, Core.TILE_SIZE);
+}
+
+function drawSurfaceTileToCache(x, y) {
+  clearSurfaceTile(x, y);
+  if (Util.isTileType(Util.getBlockAt(x, y, 1), Core.TILE.DIRT)) {
+    surfaceTerrainCtx.fillStyle = '#5B3A1E';
+    surfaceTerrainCtx.fillRect(y * Core.TILE_SIZE, x * Core.TILE_SIZE, Core.TILE_SIZE, Core.TILE_SIZE);
+  }
+}
+
+function rebuildSurfaceTerrainCache() {
+  ensureTerrainCaches();
+  surfaceTerrainCtx.clearRect(0, 0, surfaceTerrainCanvas.width, surfaceTerrainCanvas.height);
+  for (let y = 0; y < Core.WORLD_Y_MAX; y++) {
+    for (let x = 0; x < Core.WORLD_X_MAX; x++) {
+      drawSurfaceTileToCache(x, y);
+    }
+  }
+  surfaceTerrainBuilt = true;
+}
+
+function rebuildNestTerrainCache(focusY) {
+  ensureTerrainCaches();
+  nestTerrainCtx.clearRect(0, 0, nestTerrainCanvas.width, nestTerrainCanvas.height);
+
+  for (let z = 0; z < Core.WORLD_Z_MAX; z++) {
+    for (let x = 0; x < Core.WORLD_X_MAX; x++) {
+      if (!Util.isTileType(Util.getBlockAt(x, focusY, z), Core.TILE.DIRT)) continue;
+
+      nestTerrainCtx.fillStyle = '#5B3A1E';
+      nestTerrainCtx.fillRect(x * Core.TILE_SIZE, z * Core.TILE_SIZE, Core.TILE_SIZE, Core.TILE_SIZE);
+
+      let nearestEmptyDist = Infinity;
+      for (let d = 1; d <= NEST_Y_FADE_RANGE; d++) {
+        const yNeg = focusY - d;
+        const yPos = focusY + d;
+        if (yNeg >= 0 && Util.isTileType(Util.getBlockAt(x, yNeg, z), Core.TILE.EMPTY)) { nearestEmptyDist = d; break; }
+        if (yPos < Core.WORLD_Y_MAX && Util.isTileType(Util.getBlockAt(x, yPos, z), Core.TILE.EMPTY)) { nearestEmptyDist = d; break; }
+      }
+
+      if (nearestEmptyDist !== Infinity) {
+        const proximity = (NEST_Y_FADE_RANGE - nearestEmptyDist + 1) / (NEST_Y_FADE_RANGE + 1);
+        const overlayAlpha = 0.08 + proximity * 0.30;
+        nestTerrainCtx.fillStyle = `rgba(0, 0, 0, ${overlayAlpha})`;
+        nestTerrainCtx.fillRect(x * Core.TILE_SIZE, z * Core.TILE_SIZE, Core.TILE_SIZE, Core.TILE_SIZE);
+      }
+    }
+  }
+
+  nestTerrainBuilt = true;
+  nestTerrainDirty = false;
+  lastNestFocusY = focusY;
+}
+
+function consumeTerrainDirty() {
+  if (Core.state.viewMapDirty.size === 0) return;
+
+  if (!surfaceTerrainBuilt) {
+    rebuildSurfaceTerrainCache();
+  }
+
+  for (const [hash] of Core.state.viewMapDirty) {
+    const { x, y, z } = Util.getBlockLocationAtKey(hash);
+    if (z === 1) {
+      drawSurfaceTileToCache(x, y);
+    }
+    nestTerrainDirty = true;
+  }
+
+  Core.state.viewMapDirty.clear();
+}
+
+function ensureTerrainFresh() {
+  const focusY = getFocusY();
+  ensureTerrainCaches();
+
+  if (!surfaceTerrainBuilt) {
+    rebuildSurfaceTerrainCache();
+    Core.state.viewMapDirty.clear();
+    nestTerrainDirty = true;
+  }
+
+  else {
+    consumeTerrainDirty();
+  }
+
+  if (!nestTerrainBuilt || nestTerrainDirty || lastNestFocusY !== focusY) {
+    rebuildNestTerrainCache(focusY);
+  }
+}
+
 // ─── Canvas setup ──────────────────────────────────────────────
 
 export function initCanvases() {
@@ -82,7 +220,26 @@ export function resizeCanvasesToViewport() {
 // ─── Drawing ───────────────────────────────────────────────────
 
 export function drawBackground() {
-  Core.state.bgCtx.clearRect(0, 0, Core.state.canvasWidth, Core.state.canvasHeight);
+  ensureTerrainFresh();
+
+  const ctx = Core.state.bgCtx;
+  ctx.clearRect(0, 0, Core.state.canvasWidth, Core.state.canvasHeight);
+
+  const srcX = Math.floor(Core.state.camera1X * Core.TILE_SIZE);
+  const srcY = Math.floor(Core.state.camera1Y * Core.TILE_SIZE);
+  const sourceCanvas = Core.state.currentView === 'nest' ? nestTerrainCanvas : surfaceTerrainCanvas;
+
+  ctx.drawImage(
+    sourceCanvas,
+    srcX,
+    srcY,
+    Core.state.canvasWidth,
+    Core.state.canvasHeight,
+    0,
+    0,
+    Core.state.canvasWidth,
+    Core.state.canvasHeight
+  );
 }
 
 export function drawForeground() {
@@ -95,12 +252,8 @@ export function drawForeground() {
   let renderOrder = 0;
   const visible = Controls.getVisibleBlocks();
   const cullBuffer = 1;
-  const focusY = Math.floor(
-    (Core.state.colonies[Core.state.currentNestIndex]?.player?.y
-      ?? Core.state.colonies[0]?.player?.y) || 0
-  );
+  const focusY = getFocusY();
   const isNest = Core.state.currentView === 'nest';
-  const Y_FADE_RANGE = 8;
 
   // ── render-queue helpers ──
 
@@ -152,7 +305,7 @@ export function drawForeground() {
   const distanceAlpha = (y, minAlpha = 0.18) => {
     if (!isNest) return 1;
     const dist = Math.abs(Math.floor(y) - focusY);
-    return Math.max(minAlpha, 1 - Math.min(1, dist / Y_FADE_RANGE));
+    return Math.max(minAlpha, 1 - Math.min(1, dist / NEST_Y_FADE_RANGE));
   };
   const pheromoneVisible = (x, y, z) => {
     if (isNest) {
@@ -169,47 +322,6 @@ export function drawForeground() {
       x >= Math.floor(Core.state.camera1Y) - cullBuffer &&
       x <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
   };
-
-  // ── Terrain ──
-
-  if (!isNest) {
-    const minY = Math.max(0, Math.floor(Core.state.camera1X));
-    const maxY = Math.min(Core.WORLD_Y_MAX, Math.ceil(Core.state.camera1X + visible.width + cullBuffer));
-    const minX = Math.max(0, Math.floor(Core.state.camera1Y));
-    const maxX = Math.min(Core.WORLD_X_MAX, Math.ceil(Core.state.camera1Y + visible.height + cullBuffer));
-    for (let y = minY; y < maxY; y++) {
-      for (let x = minX; x < maxX; x++) {
-        if (Util.isTileType(Util.getBlockAt(x, y, 1), Core.TILE.DIRT)) {
-          queueRect(x, y, 1, "#5B3A1E", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, -90);
-        }
-      }
-    }
-  } else {
-    const minZ = Math.max(0, Math.floor(Core.state.camera1Y));
-    const maxZ = Math.min(Core.WORLD_Z_MAX, Math.ceil(Core.state.camera1Y + visible.height + cullBuffer));
-    const minX = Math.max(0, Math.floor(Core.state.camera1X));
-    const maxX = Math.min(Core.WORLD_X_MAX, Math.ceil(Core.state.camera1X + visible.width + cullBuffer));
-
-    for (let z = minZ; z < maxZ; z++) {
-      for (let x = minX; x < maxX; x++) {
-        if (!Util.isTileType(Util.getBlockAt(x, focusY, z), Core.TILE.DIRT)) continue;
-        queueRect(x, focusY, z, "#5B3A1E", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, -90);
-
-        let nearestEmptyDist = Infinity;
-        for (let d = 1; d <= Y_FADE_RANGE; d++) {
-          const yNeg = focusY - d;
-          const yPos = focusY + d;
-          if (yNeg >= 0 && Util.isTileType(Util.getBlockAt(x, yNeg, z), Core.TILE.EMPTY)) { nearestEmptyDist = d; break; }
-          if (yPos < Core.WORLD_Y_MAX && Util.isTileType(Util.getBlockAt(x, yPos, z), Core.TILE.EMPTY)) { nearestEmptyDist = d; break; }
-        }
-        if (nearestEmptyDist !== Infinity) {
-          const proximity = (Y_FADE_RANGE - nearestEmptyDist + 1) / (Y_FADE_RANGE + 1);
-          const overlayAlpha = 0.08 + proximity * 0.30;
-          queueRect(x, focusY, z, "#000", 0, 0, Core.TILE_SIZE, Core.TILE_SIZE, -85, 0, overlayAlpha);
-        }
-      }
-    }
-  }
 
   // ── Pheromones ──
 
@@ -337,6 +449,8 @@ export function clearDebug() {
 // ─── Mini-map ─────────────────────────────────────────────────
 
 export function drawMiniMap() {
+  if (!Core.state.showMiniMap) return;
+
   const canvas = Core.state.miniMapCanvas;
   const ctx = Core.state.miniMapCtx;
   if (!canvas || !ctx) return;

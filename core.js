@@ -121,6 +121,7 @@ export const state = {
   camera1Y: 0,
   viewZoom: 1,
   showDebugPaths: false,
+  showMiniMap: false,
   showTrailPheromones: true,
   showAlarmPheromones: true,
   showFootprintPheromones: true,

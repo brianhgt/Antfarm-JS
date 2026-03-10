@@ -58,13 +58,13 @@ export function addNewAnt(colony, type, x, y, z) {
     colony.soldiers.push({
       x: x + 0.5, y: y + 0.5, z: z + 0.5,
       path: null, pathIndex: 0, colIdx: colony.index, type: ANT_TYPE.SOLDIER,
-      rotation: {pitch: 0, yaw: 0, roll: 0}
+      rotation: {pitch: 0, yaw: 0, roll: 0}, hp: 100, attackCooldown: 0
     });
   } else {
     colony.workers.push({
       x: x + 0.5, y: y + 0.5, z: z + 0.5,
       path: null, pathIndex: 0, colIdx: colony.index, type: ANT_TYPE.WORKER,
-      rotation: {pitch: 0, yaw: 0, roll: 0}
+      rotation: {pitch: 0, yaw: 0, roll: 0}, hp: 100, attackCooldown: 0
     });
   }
 

@@ -164,14 +164,18 @@ function gameLoop(timestamp) {
     state.spiders.length, state.foods.size
   );
 
-  update(delta);
+  // Prevent very large deltas (e.g., when tab was inactive) from
+  // causing huge simulation steps that wipe out pheromones and other time
+  // sensitive state. Clamp to a reasonable max step (100ms).
+  const safeDelta = Math.min(delta, 0.1);
+  update(safeDelta);
 
   if (state.renderMode === '3d') {
     Render3D.render3D();
   } else {
     Render2D.drawBackground();
     Render2D.drawForeground();
-    Render2D.drawMiniMap();
+    if (state.showMiniMap) Render2D.drawMiniMap();
     if (state.showDebugPaths) Render2D.drawDebug();
   }
 

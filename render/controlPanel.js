@@ -6,11 +6,22 @@ import {
   EGG_HATCH_TIME, SPIDER_COOLDOWN,
   state
 } from '../core.js';
-import { resizeCanvasesToViewport, clearDebug, switchTo2D } from './render2D.js';
+import { resizeCanvasesToViewport, clearDebug, drawMiniMap, switchTo2D } from './render2D.js';
 import { clampCameraToViewBounds } from './controls.js';
 import { dispose3D, switchTo3D } from './render3D.js';
 
 let els = {};
+
+function syncMiniMapVisibility() {
+  const miniMapPanel = document.getElementById('miniMapPanel');
+  if (!miniMapPanel) return;
+  miniMapPanel.style.display = state.showMiniMap ? 'flex' : 'none';
+  if (state.showMiniMap) {
+    drawMiniMap();
+  } else if (state.miniMapCtx && state.miniMapCanvas) {
+    state.miniMapCtx.clearRect(0, 0, state.miniMapCanvas.width, state.miniMapCanvas.height);
+  }
+}
 
 function bindToggleButton(jq, selector, stateKey) {
   const button = jq(selector);
@@ -67,6 +78,13 @@ export function initControlPanel(jq) {
     clearDebug();
     state.showDebugPaths = jq(this).is(':checked');
   });
+
+  jq('#showMiniMapCheck').prop('checked', state.showMiniMap);
+  jq('#showMiniMapCheck').on('change', function () {
+    state.showMiniMap = jq(this).is(':checked');
+    syncMiniMapVisibility();
+  });
+  syncMiniMapVisibility();
 
   bindToggleButton(jq, '#trailPheromoneBtn', 'showTrailPheromones');
   bindToggleButton(jq, '#footprintPheromoneBtn', 'showFootprintPheromones');
