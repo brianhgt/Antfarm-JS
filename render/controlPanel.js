@@ -44,6 +44,7 @@ export function initControlPanel(jq) {
     soldiers:   document.getElementById('soldiersStat'),
     spiders:    document.getElementById('spidersStat'),
     food:       document.getElementById('foodStat'),
+    steps:      document.getElementById('stepsStat'),
   };
 
   // Mini-map canvas (if present)
@@ -121,6 +122,23 @@ export function initControlPanel(jq) {
     jq('#foodFrequencySecs').text(value.toFixed(1));
   });
 
+  // Physics timing controls
+  jq('#physicsHzSlider').val(state.physicsStepHz);
+  jq('#physicsHzValue').text(state.physicsStepHz);
+  jq('#physicsHzSlider').on('input', function () {
+    const v = parseInt(jq(this).val());
+    state.physicsStepHz = v;
+    jq('#physicsHzValue').text(v);
+  });
+
+  jq('#maxStepsSlider').val(state.maxPhysicsStepsPerFrame);
+  jq('#maxStepsValue').text(state.maxPhysicsStepsPerFrame);
+  jq('#maxStepsSlider').on('input', function () {
+    const v = parseInt(jq(this).val());
+    state.maxPhysicsStepsPerFrame = v;
+    jq('#maxStepsValue').text(v);
+  });
+
   // View toggle
   jq('#viewToggle').on('click', function () {
     if (state.currentView === 'nest') {
@@ -164,7 +182,7 @@ export function initControlPanel(jq) {
   });
 }
 
-export function updateStats(fps, zoom, totalAnts, antDeaths, workersCount, soldiersCount, spidersCount, foodCount) {
+export function updateStats(fps, zoom, totalAnts, antDeaths, workersCount, soldiersCount, spidersCount, foodCount, physicsHz) {
   if (els.fps)       els.fps.textContent       = Math.round(fps).toString();
   if (els.zoom)      els.zoom.textContent      = `${Math.round(zoom * 100)}%`;
   if (els.ants)      els.ants.textContent      = totalAnts.toString();
@@ -173,4 +191,5 @@ export function updateStats(fps, zoom, totalAnts, antDeaths, workersCount, soldi
   if (els.soldiers)  els.soldiers.textContent  = soldiersCount.toString();
   if (els.spiders)   els.spiders.textContent   = spidersCount.toString();
   if (els.food)      els.food.textContent      = foodCount.toString();
+  if (els.steps && typeof physicsHz !== 'undefined') els.steps.textContent = Math.round(physicsHz).toString();
 }

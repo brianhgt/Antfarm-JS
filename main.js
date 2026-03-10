@@ -146,10 +146,17 @@ function update(delta) {
 // ─── Game loop ─────────────────────────────────────────────────
 
 let _lastTimestamp = performance.now();
+let _lastPhysTimestamp = performance.now();
+let _physStepCounter = 0;
+let accumulator = 0;
+const MAX_FRAME_STEP = 0.25; // clamp very large frame gaps (s)
 
 function gameLoop(timestamp) {
-  const delta = (timestamp - _lastTimestamp) / 1000;
+  let delta = (timestamp - _lastTimestamp) / 1000;
   _lastTimestamp = timestamp;
+
+  // Safety clamp to avoid spiral of death after long pauses
+  if (delta > MAX_FRAME_STEP) delta = MAX_FRAME_STEP;
 
   const instantFps = delta > 0 ? 1 / delta : 0;
   state.fpsSmoothed = state.fpsSmoothed * 0.9 + instantFps * 0.1;
@@ -161,15 +168,38 @@ function gameLoop(timestamp) {
   ControlPanel.updateStats(
     Math.round(state.fpsSmoothed), state.viewZoom, totalAnts,
     state.antDeaths, workersCount, soldiersCount,
-    state.spiders.length, state.foods.size
+    state.spiders.length, state.foods.size, state.measuredPhysicsHz
   );
 
-  // Prevent very large deltas (e.g., when tab was inactive) from
-  // causing huge simulation steps that wipe out pheromones and other time
-  // sensitive state. Clamp to a reasonable max step (100ms).
-  const safeDelta = Math.min(delta, 0.1);
-  update(safeDelta);
+  accumulator += delta;
 
+  // Compute fixed step from state (Hz) and limit steps per frame from state.
+  const fixedStep = 1 / Math.max(1, state.physicsStepHz || 120);
+  const maxSteps = Math.max(1, state.maxPhysicsStepsPerFrame || 8);
+
+  // Prevent large backlog when `maxSteps` was previously small: clamp accumulator
+  // so we don't run a big catch-up burst when the limit is raised again.
+  accumulator = Math.min(accumulator, fixedStep * maxSteps);
+
+  // Run fixed-step physics updates. Limit steps per frame to avoid stalls.
+  let steps = 0;
+  while (accumulator >= fixedStep && steps < maxSteps) {
+    update(fixedStep);
+    accumulator -= fixedStep;
+    steps++;
+    _physStepCounter++;
+  }
+
+  // Update measured steps/sec roughly every second
+  const nowPhys = performance.now();
+  if (nowPhys - _lastPhysTimestamp >= 1000) {
+    const measured = Math.round((_physStepCounter * 1000) / (nowPhys - _lastPhysTimestamp));
+    state.measuredPhysicsHz = measured;
+    _physStepCounter = 0;
+    _lastPhysTimestamp = nowPhys;
+  }
+
+  // Render once per rAF. We don't require interpolation here.
   if (state.renderMode === '3d') {
     Render3D.render3D();
   } else {

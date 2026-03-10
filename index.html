@@ -80,6 +80,16 @@
           <div class="option-value">seconds: <span id="foodFrequencySecs">20.0</span></div>
         </div>
 
+        <div class="option-group">
+          <label>Physics Steps / sec: <span id="physicsHzValue">120</span></label>
+          <input type="range" id="physicsHzSlider" min="30" max="240" value="120" step="1">
+        </div>
+
+        <div class="option-group">
+          <label>Max Steps / frame: <span id="maxStepsValue">8</span></label>
+          <input type="range" id="maxStepsSlider" min="1" max="32" value="8" step="1">
+        </div>
+
         <div id="panelStats">
           <div class="stats-row">FPS: <span id="fpsStat">0</span></div>
           <div class="stats-row">Zoom: <span id="zoomStat">100%</span></div>
@@ -89,6 +99,7 @@
           <div class="stats-row">Soldiers: <span id="soldiersStat">0</span></div>
           <div class="stats-row">Spiders: <span id="spidersStat">0</span></div>
           <div class="stats-row">Food: <span id="foodStat">0</span></div>
+          <div class="stats-row">Steps/s: <span id="stepsStat">120</span></div>
         </div>
       </div>
     </div>

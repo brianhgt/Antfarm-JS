@@ -119,7 +119,7 @@ export const state = {
   currentNestIndex: 0,
   camera1X: 0,
   camera1Y: 0,
-  viewZoom: 1,
+  viewZoom: 0.7,
   showDebugPaths: false,
   showMiniMap: false,
   showTrailPheromones: true,
@@ -132,6 +132,12 @@ export const state = {
 
   // Stats
   fpsSmoothed: 60,
+
+  // Physics / simulation timing (adjustable via control panel)
+  physicsStepHz: 120, // simulation ticks per second
+  maxPhysicsStepsPerFrame: 8, // safety limit of physics steps per rAF
+  // Measured physics steps per second (updated at ~1s intervals)
+  measuredPhysicsHz: 0,
 
   // DOM references (set during initCanvases)
   viewportPanel: null,
