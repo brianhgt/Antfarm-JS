@@ -112,6 +112,11 @@ export const state = {
   foodSpawnAmount: 5,
   foodSpawnInterval: FOOD_SPAWN_INTERVAL,
   foodSpawnTimer: FOOD_SPAWN_INTERVAL,
+  foodClumpSpawnAmount: 1,
+  foodClumpSpawnInterval: 30,
+  foodClumpSpawnTimer: 30,
+  foodClumpSize: FOOD_GROUP_SIZE,
+  foodClumpRadius: 3,
 
   // View / Camera
   currentView: 'nest',    // 'nest' | 'overworld'

@@ -122,6 +122,40 @@ export function initControlPanel(jq) {
     jq('#foodFrequencySecs').text(value.toFixed(1));
   });
 
+  jq('#foodClumpAmountSlider').val(state.foodClumpSpawnAmount);
+  jq('#foodClumpAmountValue').text(state.foodClumpSpawnAmount);
+  jq('#foodClumpAmountSlider').on('input', function () {
+    const value = parseInt(jq(this).val());
+    state.foodClumpSpawnAmount = value;
+    jq('#foodClumpAmountValue').text(value);
+  });
+
+  jq('#foodClumpSizeSlider').val(state.foodClumpSize);
+  jq('#foodClumpSizeValue').text(state.foodClumpSize);
+  jq('#foodClumpSizeSlider').on('input', function () {
+    const value = parseInt(jq(this).val());
+    state.foodClumpSize = value;
+    jq('#foodClumpSizeValue').text(value);
+  });
+
+  jq('#foodClumpRadiusSlider').val(state.foodClumpRadius);
+  jq('#foodClumpRadiusValue').text(state.foodClumpRadius);
+  jq('#foodClumpRadiusSlider').on('input', function () {
+    const value = parseInt(jq(this).val());
+    state.foodClumpRadius = value;
+    jq('#foodClumpRadiusValue').text(value);
+  });
+
+  jq('#foodClumpFrequencySlider').val(state.foodClumpSpawnInterval);
+  jq('#foodClumpFrequencyValue').text(state.foodClumpSpawnInterval);
+  jq('#foodClumpFrequencySecs').text(state.foodClumpSpawnInterval.toFixed(1));
+  jq('#foodClumpFrequencySlider').on('input', function () {
+    const value = parseInt(jq(this).val());
+    jq('#foodClumpFrequencyValue').text(value);
+    jq('#foodClumpFrequencySecs').text(value.toFixed(1));
+    state.foodClumpSpawnInterval = value;
+  });
+
   // Physics timing controls
   jq('#physicsHzSlider').val(state.physicsStepHz);
   jq('#physicsHzValue').text(state.physicsStepHz);

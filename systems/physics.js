@@ -51,6 +51,16 @@ export function damageTileAt(x, y, z, amount = 10) {
   return true;
 }
 
+function spawnFoodAt(x, y, z = 0) {
+  if (!isValidBlock(x, y, z) || isSolidTile(getBlockAt(x, y, z))) return false;
+  const key = get3dHash(x, y, z);
+  if (Core.state.foods.has(key)) return false;
+
+  Core.state.foods.set(key, { x, y, z, carry: false });
+  Core.state.foodDirty.set(key, Core.DIRTY_STATE.CREATE);
+  return true;
+}
+
 export function spawnFood(delta) {
   Core.state.foodSpawnTimer -= delta;
   if (Core.state.foodSpawnTimer <= 0) {
@@ -59,11 +69,39 @@ export function spawnFood(delta) {
       const fx = Math.floor(Math.random() * Core.WORLD_X_MAX);
       const fy = Math.floor(Math.random() * Core.WORLD_Y_MAX);
       const fz = 0;
-      const fh = get3dHash(fx, fy, fz);
-      Core.state.foods.set(fh, { x: fx, y: fy, z: fz, carry: false });
-      Core.state.foodDirty.set(fh, Core.DIRTY_STATE.CREATE);
+      spawnFoodAt(fx, fy, fz);
     }
     // overall spawn will have already marked individual tiles dirty
+  }
+}
+
+function spawnFoodClump(centerX, centerY, centerZ = 0) {
+  let spawned = 0;
+  const size = Math.max(1, Core.state.foodClumpSize ?? Core.FOOD_GROUP_SIZE);
+  const radius = Math.max(1, Core.state.foodClumpRadius ?? 3);
+
+  spawned += spawnFoodAt(centerX, centerY, centerZ) ? 1 : 0;
+
+  let attempts = 0;
+  while (spawned < size && attempts < size * 12) {
+    const fx = centerX + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
+    const fy = centerY + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
+    spawned += spawnFoodAt(fx, fy, centerZ) ? 1 : 0;
+    attempts++;
+  }
+}
+
+export function spawnFoodClumps(delta) {
+  Core.state.foodClumpSpawnTimer -= delta;
+  if (Core.state.foodClumpSpawnTimer > 0) return;
+
+  Core.state.foodClumpSpawnTimer = Core.state.foodClumpSpawnInterval;
+  const clumpCount = Math.max(1, Core.state.foodClumpSpawnAmount ?? 1);
+
+  for (let i = 0; i < clumpCount; i++) {
+    const fx = Math.floor(Math.random() * Core.WORLD_X_MAX);
+    const fy = Math.floor(Math.random() * Core.WORLD_Y_MAX);
+    spawnFoodClump(fx, fy, 0);
   }
 }
 

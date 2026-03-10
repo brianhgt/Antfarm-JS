@@ -13,7 +13,8 @@ import * as ControlPanel from './render/controlPanel.js';
 import * as Player from './entities/player.js';
 import { updateSpiders, updateSkulls } from './entities/enemy.js';
 import * as AI from './systems/ai.js';
-import { spawnFood, updatePheromones } from './systems/physics.js';
+import * as BlackColonyAI from './systems/aiBlackColony.js';
+import { spawnFood, spawnFoodClumps, updatePheromones } from './systems/physics.js';
 
 const jq = jQuery.noConflict();
 
@@ -46,6 +47,8 @@ function initWorld() {
     {
       index: 0,
       name: "A",
+      aiType: 'pheromone',
+      foragerRatio: 0.3,
       color: "black",
       pheromoneColors: { trail: '#f7a531', footprint: '#57c7ff', alarm: '#ff4d5a' },
       pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
@@ -54,6 +57,7 @@ function initWorld() {
     {
       index: 1,
       name: "B",
+      aiType: 'default',
       color: "red",
       pheromoneColors: { trail: '#8dff5a', footprint: '#b17cff', alarm: '#ff79c6' },
       pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
@@ -129,11 +133,16 @@ function initWorld() {
 
 function update(delta) {
   spawnFood(delta);
+  spawnFoodClumps(delta);
   Player.updatePlayers(delta);
 
   state.colonies.forEach((col, idx) => {
     AI.hatchEggs(col, idx, delta);
-    AI.updateWorkers(col, idx, delta);
+    if (col.aiType === 'pheromone') {
+      BlackColonyAI.updateWorkers(col, idx, delta);
+    } else {
+      AI.updateWorkers(col, idx, delta);
+    }
     AI.updateSoldiers(col, idx, delta);
   });
 
