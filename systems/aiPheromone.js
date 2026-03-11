@@ -1,18 +1,63 @@
-// systems/aiBlackColony.js — Pheromone-led worker AI for the black colony
+// Pheromone-led worker AI for the black colony
+
+
+/*
+  * Pheromone trail-following worker AI.
+  *
+  * Workers deposit a "trail" pheromone when carrying food
+  * Workers deposit a "footprint" pheromone (periodically?) when traveling, to mark explored areas and discourage aimless wandering
+  * Workers deposit an "alarm" pheromone when threatened by nearby enemies, to warn nestmates and recruit soldiers
+  * When triggered by an alarm pheromone, workers can either flee (random, fast wander) or attack 
+  * Workers prefer paths with stronger trail pheromone
+  * Soliders stay close to "footprint" and "trail" pheromones and become aggressive with "alarm" pheromones
+  * Ants tend to follow a direction and have a cone of "sense" for pheromones
+  * 
+  * 
+  * Nest building:
+  * Workers could use pheromones to coordinate nest excavation, with a "dig" pheromone that encourages 
+  *     digging in certain areas and discourages it in others. This could lead to more efficient nest
+  *     layouts and the emergence of distinct chambers for different purposes (e.g., nurseries, food storage, etc.).
+  * 
+  * Scout:
+  * Slight bias toward low footprint pheromone to explore new areas.
+  * Foraging is a basic behavior for ants and becomes more important based on availability of food in the nest
+  * 
+  * Worker/Forrager roles:
+  * follow strongest trail gradient
+  * If trail lost, random search with footprint bias
+  * 
+  * Soldier recruitment and defense:
+  * When an ant encounters a threat (e.g., a spider or enemy ant), it deposits an "alarm" pheromone.
+  * Soldiers move toward "alarm" pheromone gradients to find and neutralize threats.
+  * They have a stronger response to "footprint" pheromones to stay near areas of high worker activity.
+  * 
+  * Alarm response:
+  * If nest disturbed, ants release alarm pheromone
+  * 
+  * 
+  * Ant Senses
+  * - sensor angle: 45°
+  * - sensor distance: 3 cells
+  * - move toward stronger concentration, they follow a gradient, not just the strongest nearby cell
+  * - ants lose direction with higher gradients, ants wander slightly [perceived = pheromone / (pheromone + k)]
+  * - direction =
+        pheromone_gradient
+        + random_noise
+  * - sensor_angle = 30–45°
+  * - sensor_distance = 2–5 body lengths
+  * - noise = ±10–20°
+*/
 
 import {
   TILE, ANT_TYPE, ANT_SPEED, PATH_TOLERANCE, WANDER_DIST,
   EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
-import {
-  isSolidTile, isDiggableTile, getBlockAt,
-  get3dHash, findPath, getRandomNearbyEmptyTile, isMoveOutsideWorld
-} from '../util.js';
+import * as Util from '../util.js';
 import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from './physics.js';
 
 function getPheromoneValue(map, x, y, z) {
   if (!(map instanceof Map)) return 0;
-  return map.get(get3dHash(x, y, z)) ?? 0;
+  return map.get(Util.get3dHash(x, y, z)) ?? 0;
 }
 
 function getNestDistance(col, x, y, z) {
@@ -27,9 +72,9 @@ function ensureWorkerRole(ant, col) {
   ant.role = Math.random() < (col.foragerRatio ?? 0.25) ? 'forager' : 'worker';
 }
 
-function setPathToTarget(ant, target, tolerance = PATH_TOLERANCE) {
+function setPathToTarget(ant, target, tolerance = Util.PATH_TOLERANCE) {
   if (!target) return false;
-  const path = findPath(
+  const path = Util.findPath(
     Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z),
     Math.floor(target.x), Math.floor(target.y), Math.floor(target.z),
     tolerance
@@ -65,7 +110,7 @@ function moveAlongPath(ant, delta) {
   const nx = ant.x + speed * dx / len;
   const ny = ant.y + speed * dy / len;
   const nz = ant.z + speed * dz / len;
-  if (!isMoveOutsideWorld(nx, ny, nz)) {
+  if (!Util.isMoveOutsideWorld(nx, ny, nz)) {
     ant.x = nx;
     ant.y = ny;
     ant.z = nz;
@@ -76,7 +121,7 @@ function updateWorkerPheromoneTrail(ant, colonyIndex) {
   const antX = Math.floor(ant.x);
   const antY = Math.floor(ant.y);
   const antZ = Math.floor(ant.z);
-  const currentTileKey = get3dHash(antX, antY, antZ);
+  const currentTileKey = Util.get3dHash(antX, antY, antZ);
 
   if (ant.lastPheromoneTile === currentTileKey) return;
   ant.lastPheromoneTile = currentTileKey;
@@ -93,30 +138,12 @@ function updateAlarmPheromone(entity, colonyIndex) {
   const antX = Math.floor(entity.x);
   const antY = Math.floor(entity.y);
   const antZ = Math.floor(entity.z);
-  const currentTileKey = get3dHash(antX, antY, antZ);
+  const currentTileKey = Util.get3dHash(antX, antY, antZ);
 
   if (entity.lastAlarmPheromoneTile === currentTileKey) return;
   if (depositAlarmPheromoneIfThreatened(colonyIndex, antX, antY, antZ)) {
     entity.lastAlarmPheromoneTile = currentTileKey;
   }
-}
-
-function findNearestFood(ant, maxDistance = Infinity) {
-  let best = null;
-  let bestDist = maxDistance;
-
-  state.foods.forEach(food => {
-    const dx = food.x - ant.x;
-    const dy = food.y - ant.y;
-    const dz = food.z - ant.z;
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (dist < bestDist) {
-      best = food;
-      bestDist = dist;
-    }
-  });
-
-  return best;
 }
 
 function getWorkerCrowding(col, ant, x, y, z, radius = 3) {
@@ -149,20 +176,25 @@ function chooseRecruitmentTarget(col, ant) {
   let bestTarget = null;
   let bestScore = 0.9;
 
+  /*  Sample random nearby tiles and choose the one with the strongest
+   *  trail pheromone, adjusted by alarm pheromone and distance to nest.
+   *  Needs direction, distance, gradient, and crowding heuristics
+   */
   for (let i = 0; i < 24; i++) {
-    const candidate = getRandomNearbyEmptyTile(currentX, currentY, currentZ, 9);
+    const candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 9);
     if (!candidate) continue;
 
     const trail = getPheromoneValue(trailMap, candidate.x, candidate.y, candidate.z);
-    if (trail <= 0) continue;
 
     const alarm = getPheromoneValue(alarmMap, candidate.x, candidate.y, candidate.z);
+
     const nestDist = getNestDistance(col, candidate.x, candidate.y, candidate.z);
-    const crowding = getWorkerCrowding(col, ant, candidate.x + 0.5, candidate.y + 0.5, candidate.z + 0.5);
+
+    const crowding = getWorkerCrowding(col, ant,
+       candidate.x + 0.5, candidate.y + 0.5, candidate.z + 0.5);
     const score = (trail * 5.5)
       - (alarm * 5.0)
-      - (crowding * 3.2)
-      + (Math.min(nestDist, 14) * 0.25);
+      - (crowding * 3.2);
 
     if (score > bestScore) {
       bestScore = score;
@@ -187,14 +219,13 @@ function chooseScoredTarget(col, ant) {
   let bestScore = -Infinity;
 
   for (let i = 0; i < samples; i++) {
-    const candidate = getRandomNearbyEmptyTile(currentX, currentY, currentZ, radius);
+    const candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, radius);
     if (!candidate) continue;
 
     const footprint = getPheromoneValue(footprintMap, candidate.x, candidate.y, candidate.z);
     const trail = getPheromoneValue(trailMap, candidate.x, candidate.y, candidate.z);
     const alarm = getPheromoneValue(alarmMap, candidate.x, candidate.y, candidate.z);
-    const nestDist = getNestDistance(col, candidate.x, candidate.y, candidate.z);
-    const stepDist = Math.abs(candidate.x - currentX) + Math.abs(candidate.y - currentY) + Math.abs(candidate.z - currentZ);
+    //const nestDist = getNestDistance(col, candidate.x, candidate.y, candidate.z);
     const surfaceBias = col.nest.z - candidate.z;
     const crowding = getWorkerCrowding(col, ant, candidate.x + 0.5, candidate.y + 0.5, candidate.z + 0.5);
 
@@ -204,9 +235,7 @@ function chooseScoredTarget(col, ant) {
         - (footprint * 0.7)
         - (alarm * 3.5)
         - (crowding * 1.4)
-        + (Math.min(nestDist, 26) * 0.22)
-        + (surfaceBias * 0.9)
-        - (stepDist * 0.12);
+        + (surfaceBias * 0.9);
     } else {
       const desiredNestDist = 6.5;
       score = (footprint * 2.4)
@@ -214,10 +243,7 @@ function chooseScoredTarget(col, ant) {
         - (alarm * 4.0)
         - (crowding * 3.8)
         - (Math.max(0, footprint - 0.8) * 1.8)
-        + (Math.min(trail, 2.5) * Math.min(nestDist, 12) * 0.18)
-        - (Math.abs(nestDist - desiredNestDist) * 0.7)
-        - (Math.max(0, nestDist - 12) * 1.6)
-        - (stepDist * 0.04);
+        + (Math.min(trail, 2.5) * 0.18);
     }
 
     if (score > bestScore) {
@@ -234,7 +260,7 @@ function chooseIdleTarget(col, ant) {
     return { x: col.nest.x, y: col.nest.y, z: col.nest.z };
   }
 
-  const food = findNearestFood(ant, ant.role === 'forager' ? 30 : 10);
+  const food = Util.findNearestFood(ant, ant.role === 'forager' ? 30 : 10);
   if (food && setPathToTarget(ant, food, PATH_TOLERANCE)) {
     return true;
   }
@@ -244,19 +270,20 @@ function chooseIdleTarget(col, ant) {
     return true;
   }
 
+  //TODO: ants don't know distance to nest, this should be removed
   const nestDist = getNestDistance(col, ant.x, ant.y, ant.z);
   if (ant.role !== 'forager' && nestDist > 12) {
     return setPathToTarget(ant, col.nest, PATH_TOLERANCE);
   }
 
-  const target = chooseScoredTarget(col, ant) || getRandomNearbyEmptyTile(
+  const target = chooseScoredTarget(col, ant) || Util.getRandomNearbyEmptyTile(
     Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), ant.role === 'forager' ? 10 : 6
   );
   return setPathToTarget(ant, target, PATH_TOLERANCE * (ant.role === 'forager' ? 1.4 : 2.0));
 }
 
 function handleFoodInteractions(col, ant, antX, antY, antZ) {
-  const tileHash = get3dHash(antX, antY, antZ);
+  const tileHash = Util.get3dHash(antX, antY, antZ);
 
   if (!ant.carrying && state.foods.has(tileHash)) {
     ant.carrying = TILE.FOOD;
@@ -280,8 +307,8 @@ function handleFoodInteractions(col, ant, antX, antY, antZ) {
     const ez = col.nest.z + Math.floor(Math.sin(angle) * 2);
     const ey = col.nest.y;
     if (state.colonies[col.index]) {
-      const eggHash = get3dHash(ex, ey, ez);
-      if (!isSolidTile(getBlockAt(ex, ey, ez))) {
+      const eggHash = Util.get3dHash(ex, ey, ez);
+      if (!Util.isSolidTile(Util.getBlockAt(ex, ey, ez))) {
         col.eggs.set(eggHash, { x: ex, y: ey, z: ez, type: eggType, timer: EGG_HATCH_TIME, carry: false });
         state.foodDirty.set(eggHash, DIRTY_STATE.CREATE);
       }
@@ -311,7 +338,7 @@ export function updateWorkers(col, colonyIndex, delta) {
     updateWorkerPheromoneTrail(ant, colonyIndex);
     updateAlarmPheromone(ant, colonyIndex);
 
-    if (isDiggableTile(getBlockAt(antX, antY, antZ))) {
+    if (Util.isDiggableTile(Util.getBlockAt(antX, antY, antZ))) {
       damageTileAt(antX, antY, antZ, 10);
     }
 

@@ -32,7 +32,7 @@ export const WORLD_Z_MAX = 40;
 export const TILE_OPEN_SPACE = 1;
 export const DEFAULT_NEST_Y = 40;
 export const OVERWORLD_Y_RATIO = 20;
-export const FOOD_GROUP_SIZE = 5;
+export const FOOD_GROUP_SIZE = 20;
 export const NEST_MAX_DEPTH = 24;
 
 // ─── Gameplay Tuning ───────────────────────────────────────────
@@ -109,12 +109,12 @@ export const state = {
   // Config (adjustable via control panel)
   maxEntities: 2000,
   numSpiders: 1,
-  foodSpawnAmount: 5,
+  foodSpawnAmount: 0,
   foodSpawnInterval: FOOD_SPAWN_INTERVAL,
   foodSpawnTimer: FOOD_SPAWN_INTERVAL,
   foodClumpSpawnAmount: 1,
-  foodClumpSpawnInterval: 30,
-  foodClumpSpawnTimer: 30,
+  foodClumpSpawnInterval: 200,
+  foodClumpSpawnTimer: 0,
   foodClumpSize: FOOD_GROUP_SIZE,
   foodClumpRadius: 3,
 

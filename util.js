@@ -137,6 +137,30 @@ export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   return null;
 }
 
+function rotateDirection2D(direction, angleDeg) {
+  const radians = angleDeg * Math.PI / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return normalizeDirection({
+    x: (direction.x * cos) - (direction.y * sin),
+    y: (direction.x * sin) + (direction.y * cos),
+    z: direction.z ?? 0
+  });
+}
+
+function blendDirections(a, b, amount = 0.5) {
+  return normalizeDirection({
+    x: (a.x * (1 - amount)) + (b.x * amount),
+    y: (a.y * (1 - amount)) + (b.y * amount),
+    z: (a.z * (1 - amount)) + (b.z * amount)
+  });
+}
+
+function getRandomTurnDirection(baseDirection, maxAngleDeg = 20) {
+  const randomAngle = ((Math.random() * 2) - 1) * maxAngleDeg;
+  return rotateDirection2D(baseDirection, randomAngle);
+}
+
 // ─── Color utilities ───────────────────────────────────────────
 
 export function blendColor(c1, c2, amount) {
@@ -311,4 +335,22 @@ export function findPath(startX, startY, startZ, goalX, goalY, goalZ, tolerance 
     }
   }
   return null;
+}
+
+export function findNearestFood(ant, maxDistance = Infinity) {
+  let best = null;
+  let bestDist = maxDistance;
+
+  state.foods.forEach(food => {
+    const dx = food.x - ant.x;
+    const dy = food.y - ant.y;
+    const dz = food.z - ant.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (dist < bestDist) {
+      best = food;
+      bestDist = dist;
+    }
+  });
+
+  return best;
 }

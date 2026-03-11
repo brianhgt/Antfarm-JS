@@ -51,6 +51,11 @@ export function damageTileAt(x, y, z, amount = 10) {
   return true;
 }
 
+export function damageAnt(attacker, defender) {
+
+
+}
+
 function spawnFoodAt(x, y, z = 0) {
   if (!isValidBlock(x, y, z) || isSolidTile(getBlockAt(x, y, z))) return false;
   const key = get3dHash(x, y, z);

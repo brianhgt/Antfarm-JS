@@ -13,7 +13,7 @@ import * as ControlPanel from './render/controlPanel.js';
 import * as Player from './entities/player.js';
 import { updateSpiders, updateSkulls } from './entities/enemy.js';
 import * as AI from './systems/ai.js';
-import * as BlackColonyAI from './systems/aiBlackColony.js';
+import * as AIPheromone from './systems/aiPheromone.js';
 import { spawnFood, spawnFoodClumps, updatePheromones } from './systems/physics.js';
 
 const jq = jQuery.noConflict();
@@ -57,7 +57,7 @@ function initWorld() {
     {
       index: 1,
       name: "B",
-      aiType: 'default',
+      aiType: 'pheromone',
       color: "red",
       pheromoneColors: { trail: '#8dff5a', footprint: '#b17cff', alarm: '#ff79c6' },
       pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
@@ -119,13 +119,14 @@ function initWorld() {
     col.nest = { x: nx, y: ny, z: nz, sX: nx, sY: ny, sZ: nz + 1 };
     col.player = { x: nx + 0.5, y: ny + 0.5, z: nz + 0.5, carrying: null };
 
-    // Spawn initial egg
-    const ex = nx + 1, ey = ny, ez = nz;
-    Util.setBlock(ex, ey, ez, TILE.EMPTY);
-    col.eggs.set(Util.get3dHash(ex, ey, ez), {
-      x: ex, y: ey, z: ez,
-      type: ANT_TYPE.WORKER, timer: EGG_HATCH_TIME, carry: false
-    });
+    // Spawn initial egg(s)
+    for (let i = 0; i <= 3; i++) {
+      const {x, y, z} = Util.getRandomNearbyEmptyTile(nx, ny, nz, 2);
+      col.eggs.set(Util.get3dHash(x, y, z), {
+        x: x, y: y, z: z,
+        type: ANT_TYPE.WORKER, timer: EGG_HATCH_TIME, carry: false, colIdx: colIdx
+      });
+    }
   });
 }
 
@@ -139,7 +140,7 @@ function update(delta) {
   state.colonies.forEach((col, idx) => {
     AI.hatchEggs(col, idx, delta);
     if (col.aiType === 'pheromone') {
-      BlackColonyAI.updateWorkers(col, idx, delta);
+      AIPheromone.updateWorkers(col, idx, delta);
     } else {
       AI.updateWorkers(col, idx, delta);
     }
