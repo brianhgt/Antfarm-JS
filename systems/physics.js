@@ -40,15 +40,15 @@ const PHEROMONE_DIRS = [
 
 export function damageTileAt(x, y, z, amount = 10) {
   const tile = getBlockAt(x, y, z);
-  if (!isDiggableTile(tile)) return false;
+  if (!isDiggableTile(tile)) return Infinity;
   const nextHp = (tile.hp ?? 0) - amount;
   if (nextHp <= 0) {
     setBlock(x, y, z, Core.TILE.EMPTY);
     Core.state.viewMapDirty.set(get3dHash(x, y, z), Core.DIRTY_STATE.DELETE);
-    return true;
+    return 0;
   }
   setBlock(x, y, z, { type: tile.type, hp: nextHp });
-  return true;
+  return nextHp;
 }
 
 export function damageAnt(attacker, defender) {
@@ -256,8 +256,12 @@ export function isSpiderNearby(x, y, z, radius = Core.SPIDER_ALARM_RADIUS) {
   });
 }
 
+export function isThreatened(colonyIndex, x, y, z) {
+  return isEnemyAntNearby(colonyIndex, x, y, z) || isSpiderNearby(x, y, z);
+}
+
 export function depositAlarmPheromoneIfThreatened(colonyIndex, x, y, z, multiplier = 1) {
-  if (!isSpiderNearby(x, y, z) && !isEnemyAntNearby(colonyIndex, x, y, z)) {
+  if (!isThreatened(colonyIndex, x, y, z)) {
     return false;
   }
 

@@ -1,5 +1,5 @@
 // Pheromone-led worker AI for the black colony
-
+import * as Entity from '../entities/entity.js';
 
 /*
   * Pheromone trail-following worker AI.
@@ -60,14 +60,17 @@ function getPheromoneValue(map, x, y, z) {
   return map.get(Util.get3dHash(x, y, z)) ?? 0;
 }
 
+/*
 function getNestDistance(col, x, y, z) {
   const dx = x - col.nest.x;
   const dy = y - col.nest.y;
   const dz = z - col.nest.z;
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
+  */
 
 function ensureWorkerRole(ant, col) {
+  //this isn't correct, should be based on environment and colony state, not random chance
   if (ant.role) return;
   ant.role = Math.random() < (col.foragerRatio ?? 0.25) ? 'forager' : 'worker';
 }
@@ -86,36 +89,6 @@ function setPathToTarget(ant, target, tolerance = Util.PATH_TOLERANCE) {
   return true;
 }
 
-function moveAlongPath(ant, delta) {
-  if (!ant.path || ant.pathIndex >= ant.path.length) {
-    ant.path = null;
-    return;
-  }
-
-  const next = ant.path[ant.pathIndex];
-  const dx = next.x + 0.5 - ant.x;
-  const dy = next.y + 0.5 - ant.y;
-  const dz = next.z + 0.5 - ant.z;
-  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-  if (len < 0.1) {
-    ant.x = next.x + 0.5;
-    ant.y = next.y + 0.5;
-    ant.z = next.z + 0.5;
-    ant.pathIndex++;
-    return;
-  }
-
-  const speed = ANT_SPEED * delta;
-  const nx = ant.x + speed * dx / len;
-  const ny = ant.y + speed * dy / len;
-  const nz = ant.z + speed * dz / len;
-  if (!Util.isMoveOutsideWorld(nx, ny, nz)) {
-    ant.x = nx;
-    ant.y = ny;
-    ant.z = nz;
-  }
-}
 
 function updateWorkerPheromoneTrail(ant, colonyIndex) {
   const antX = Math.floor(ant.x);
@@ -139,11 +112,13 @@ function updateAlarmPheromone(entity, colonyIndex) {
   const antY = Math.floor(entity.y);
   const antZ = Math.floor(entity.z);
   const currentTileKey = Util.get3dHash(antX, antY, antZ);
-
-  if (entity.lastAlarmPheromoneTile === currentTileKey) return;
-  if (depositAlarmPheromoneIfThreatened(colonyIndex, antX, antY, antZ)) {
-    entity.lastAlarmPheromoneTile = currentTileKey;
+  if(Physics.isThreatened(colonyIndex, antX, antY, antZ)) {
+    depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
   }
+  // if (entity.lastAlarmPheromoneTile === currentTileKey) return;
+  // if (depositAlarmPheromoneIfThreatened(colonyIndex, antX, antY, antZ)) {
+  //   entity.lastAlarmPheromoneTile = currentTileKey;
+  // }
 }
 
 function getWorkerCrowding(col, ant, x, y, z, radius = 3) {
@@ -256,13 +231,9 @@ function chooseScoredTarget(col, ant) {
 }
 
 function chooseIdleTarget(col, ant) {
+  
   if (ant.carrying === TILE.FOOD) {
-    return { x: col.nest.x, y: col.nest.y, z: col.nest.z };
-  }
-
-  const food = Util.findNearestFood(ant, ant.role === 'forager' ? 30 : 10);
-  if (food && setPathToTarget(ant, food, PATH_TOLERANCE)) {
-    return true;
+    //TODO Drop it at nest, nest targeting is done with recruitment
   }
 
   const recruitmentTarget = chooseRecruitmentTarget(col, ant);
@@ -270,11 +241,18 @@ function chooseIdleTarget(col, ant) {
     return true;
   }
 
+  const food = Util.findNearestFood(ant, ant.role === 'forager' ? 30 : 10);
+  if (food && setPathToTarget(ant, food, PATH_TOLERANCE)) {
+    return true;
+  }
+
   //TODO: ants don't know distance to nest, this should be removed
+  /*
   const nestDist = getNestDistance(col, ant.x, ant.y, ant.z);
   if (ant.role !== 'forager' && nestDist > 12) {
     return setPathToTarget(ant, col.nest, PATH_TOLERANCE);
   }
+  */
 
   const target = chooseScoredTarget(col, ant) || Util.getRandomNearbyEmptyTile(
     Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), ant.role === 'forager' ? 10 : 6
@@ -320,27 +298,31 @@ export function updateWorkers(col, colonyIndex, delta) {
   col.workers.forEach(ant => {
     ensureWorkerRole(ant, col);
 
+    const antX = Math.floor(ant.x);
+    const antY = Math.floor(ant.y);
+    const antZ = Math.floor(ant.z);
+
+    if(Physics.isThreatened(colonyIndex, antX, antY, antZ)) {
+      depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
+      //TODO set random path
+      //TODO find enemy and attack
+    }
+
     if (!ant.path) {
       chooseIdleTarget(col, ant);
     }
 
-    moveAlongPath(ant, delta);
+    if(Entity.moveAlongPath(ant, ANT_SPEED, delta)) {
+      ant.pathIndex++;
+    }
 
     if (ant.path && ant.pathIndex >= ant.path.length) {
       ant.path = null;
       ant.target = null;
     }
 
-    const antX = Math.floor(ant.x);
-    const antY = Math.floor(ant.y);
-    const antZ = Math.floor(ant.z);
-
     updateWorkerPheromoneTrail(ant, colonyIndex);
     updateAlarmPheromone(ant, colonyIndex);
-
-    if (Util.isDiggableTile(Util.getBlockAt(antX, antY, antZ))) {
-      damageTileAt(antX, antY, antZ, 10);
-    }
 
     handleFoodInteractions(col, ant, antX, antY, antZ);
   });

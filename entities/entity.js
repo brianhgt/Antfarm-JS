@@ -3,7 +3,7 @@ import {
   TILE, ANT_TYPE, ANT_SPEED, PATH_TOLERANCE, WANDER_DIST,
   EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
-import { isMoveOutsideWorld } from '../util/util.js';
+import * as Util from '../util/util.js';
 
 import { countTotalEntities } from '../systems/ai.js';
 
@@ -33,7 +33,7 @@ export function moveAlongPath(entity, speed, delta) {
     const nx = entity.x + step * dx / len;
     const ny = entity.y + step * dy / len;
     const nz = entity.z + step * dz / len;
-    if (!isMoveOutsideWorld(nx, ny, nz)) {
+    if (!Util.isMoveOutsideWorld(nx, ny, nz)) {
       entity.x = nx;
       entity.y = ny;
       entity.z = nz;

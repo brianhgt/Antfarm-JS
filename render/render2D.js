@@ -2,6 +2,7 @@
 
 import * as Core from '../core.js';
 import * as Util from '../util/util.js';
+import * as ColorUtil from '../util/color.js';
 import * as Controls from './controls.js';
 
 const PHEROMONE_RENDER_CONFIG = [
@@ -430,7 +431,7 @@ export function drawDebug() {
   Core.state.colonies.forEach(col => {
     col.workers.forEach(w => {
       if (w.path) {
-        ctx.fillStyle = Util.hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
+        ctx.fillStyle = ColorUtil.hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
         w.path.forEach(next => {
           const t = worldToScreenView(next.x, next.y, next.z, Core.state.currentView);
           ctx.fillRect(t.sx, t.sy, Core.TILE_SIZE, Core.TILE_SIZE);

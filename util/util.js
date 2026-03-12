@@ -3,8 +3,13 @@
 import {
   TILE, DEFAULT_TILE_HP, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state, DIRTY_STATE
 } from '../core.js';
+import * as Physics from '../systems/physics.js';
 
 // ─── Tile helpers ──────────────────────────────────────────────
+
+export function normalizeLocation(x, y, z) {
+  return { x: Math.round(x), y: Math.round(y), z: Math.round(z) };
+}
 
 export function tileType(tileLike) {
   if (tileLike == null) return null;
@@ -41,19 +46,6 @@ export function isSolidTile(tileLike) {
 export function isDiggableTile(tileLike) {
   const t = tileType(tileLike);
   return t === TILE.DIRT || t === TILE.ROCK;
-}
-
-// ─── Hashing & random ─────────────────────────────────────────
-
-export function get3dHash(x, y, z) {
-  //return z * (WORLD_X_MAX * WORLD_Y_MAX) + y * WORLD_X_MAX + x;
-  return `${x},${y},${z}`;
-}
-
-export function getRandMap(map) {
-  const values = Array.from(map.values());
-  if (values.length === 0) return undefined;
-  return values[Math.floor(Math.random() * values.length)];
 }
 
 // ─── World access ──────────────────────────────────────────────
@@ -104,17 +96,20 @@ export function getViewMap() {
   return state.viewMap;
 }
 
-// ─── Entity helpers ────────────────────────────────────────────
+// ─── Hashing & random ─────────────────────────────────────────
 
-export function findFoodAt(fx, fy, fz) {
-  let found = null;
-  state.foods.forEach(food => {
-    if (Math.abs(food.x - fx) < 0.7 && Math.abs(food.y - fy) < 0.7 && Math.abs(food.z - fz) < 0.7) {
-      found = food;
-    }
-  });
-  return found;
+export function get3dHash(x, y, z) {
+  //return z * (WORLD_X_MAX * WORLD_Y_MAX) + y * WORLD_X_MAX + x;
+  return `${x},${y},${z}`;
 }
+
+export function getRandMap(map) {
+  const values = Array.from(map.values());
+  if (values.length === 0) return undefined;
+  return values[Math.floor(Math.random() * values.length)];
+}
+
+// ─── Entity helpers ────────────────────────────────────────────
 
 export function getPathJitter(entity, delta, magnitude = 0.16) {
   const jitterX = (Math.random() - 0.5) * magnitude * delta;
@@ -137,7 +132,43 @@ export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   return null;
 }
 
-function rotateDirection2D(direction, angleDeg) {
+export function moveTo(entity, x2,y2,z2, speed, delta) {
+
+  const dx = x2 - entity.x;
+  const dy = y2 - entity.y;
+  const dz = z2 - entity.z;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+  if (len < 0.1) {
+    entity.x = x2 + 0.5;
+    entity.y = y2 + 0.5;
+    entity.z = z2 + 0.5;
+    return true;
+    } else {
+      const step = speed * delta;
+      const nx = entity.x + step * dx / len;
+      const ny = entity.y + step * dy / len;
+      const nz = entity.z + step * dz / len;
+
+      const nextTile = normalizeLocation(nx, ny, nz);
+      if (Util.isMoveOutsideWorld(nextTile.x, nextTile.y, nextTile.z)) {
+        return false;
+      }
+
+      if (Util.isDiggableTile(Util.getBlockAt(nextTile.x, nextTile.y, nextTile.z))) {
+        if(Physics.damageTileAt(nextTile.x, nextTile.y, nextTile.z, 10) > 0) {
+          return false;
+        }
+      }
+      entity.x = nx;
+      entity.y = ny;
+      entity.z = nz;
+  }
+}
+
+// ─── Direction Math ──────────────────────────────
+
+export function rotateDirection2D(direction, angleDeg) {
   const radians = angleDeg * Math.PI / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -148,7 +179,7 @@ function rotateDirection2D(direction, angleDeg) {
   });
 }
 
-function blendDirections(a, b, amount = 0.5) {
+export function blendDirections(a, b, amount = 0.5) {
   return normalizeDirection({
     x: (a.x * (1 - amount)) + (b.x * amount),
     y: (a.y * (1 - amount)) + (b.y * amount),
@@ -156,57 +187,39 @@ function blendDirections(a, b, amount = 0.5) {
   });
 }
 
-function getRandomTurnDirection(baseDirection, maxAngleDeg = 20) {
+export function getRandomTurnDirection(baseDirection, maxAngleDeg = 20) {
   const randomAngle = ((Math.random() * 2) - 1) * maxAngleDeg;
   return rotateDirection2D(baseDirection, randomAngle);
 }
 
-// ─── Color utilities ───────────────────────────────────────────
+// ─── Food ──────────────────────────────
 
-export function blendColor(c1, c2, amount) {
-  function hexToRgb(hex) {
-    hex = hex.replace("#", "");
-    return {
-      r: parseInt(hex.substring(0, 2), 16),
-      g: parseInt(hex.substring(2, 4), 16),
-      b: parseInt(hex.substring(4, 6), 16)
-    };
-  }
-  function rgbToHex(r, g, b) {
-    return "#" +
-      r.toString(16).padStart(2, '0') +
-      g.toString(16).padStart(2, '0') +
-      b.toString(16).padStart(2, '0');
-  }
-
-  let rgb1 = hexToRgb(c1);
-  let rgb2 = hexToRgb(c2);
-  const brightness = rgb1.r + rgb1.g + rgb1.b;
-  if (brightness < 30) { rgb1.r = 60; rgb1.g = 40; rgb1.b = 60; }
-
-  let r = Math.round(rgb1.r * (1 - amount) + rgb2.r * amount);
-  let g = Math.round(rgb1.g * (1 - amount) + rgb2.g * amount);
-  let b = Math.round(rgb1.b * (1 - amount) + rgb2.b * amount);
-  return rgbToHex(r, g, b);
+export function findFoodAt(fx, fy, fz) {
+  let found = null;
+  state.foods.forEach(food => {
+    if (Math.abs(food.x - fx) < 0.7 && Math.abs(food.y - fy) < 0.7 && Math.abs(food.z - fz) < 0.7) {
+      found = food;
+    }
+  });
+  return found;
 }
 
-export function hexToRgba(hex, alpha = 1.0) {
-  hex = hex.replace(/^#/, '');
-  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+export function findNearestFood(ant, maxDistance = Infinity) {
+  let best = null;
+  let bestDist = maxDistance;
 
-export function toTransparentColor(color, alpha) {
-  let tempCtx = document.createElement('canvas').getContext('2d');
-  tempCtx.fillStyle = color;
-  let computed = tempCtx.fillStyle;
-  let match = computed.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-  if (!match) return color;
-  let [_, r, g, b] = match;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  state.foods.forEach(food => {
+    const dx = food.x - ant.x;
+    const dy = food.y - ant.y;
+    const dz = food.z - ant.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (dist < bestDist) {
+      best = food;
+      bestDist = dist;
+    }
+  });
+
+  return best;
 }
 
 // ─── A* Pathfinding ────────────────────────────────────────────
@@ -335,22 +348,4 @@ export function findPath(startX, startY, startZ, goalX, goalY, goalZ, tolerance 
     }
   }
   return null;
-}
-
-export function findNearestFood(ant, maxDistance = Infinity) {
-  let best = null;
-  let bestDist = maxDistance;
-
-  state.foods.forEach(food => {
-    const dx = food.x - ant.x;
-    const dy = food.y - ant.y;
-    const dz = food.z - ant.z;
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (dist < bestDist) {
-      best = food;
-      bestDist = dist;
-    }
-  });
-
-  return best;
 }
