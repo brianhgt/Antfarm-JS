@@ -3,7 +3,7 @@
 import * as Core from '../core.js';
 import {
   isDiggableTile, isSolidTile, getBlockAt, setBlock, get3dHash, isValidBlock
-} from '../util.js';
+} from '../util/util.js';
 
 const PHEROMONE_CONFIG = {
   trail: {

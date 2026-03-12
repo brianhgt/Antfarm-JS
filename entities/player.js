@@ -7,7 +7,7 @@ import {
 } from '../core.js';
 import {
   isTileType, isDiggableTile, getBlockAt, setBlock, get3dHash
-} from '../util.js';
+} from '../util/util.js';
 import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from '../systems/physics.js';
 import { spawnEggNearNest } from '../systems/ai.js';
 

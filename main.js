@@ -5,7 +5,7 @@ import {
   WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, NEST_MAX_DEPTH, DEFAULT_NEST_Y,
   state
 } from './core.js';
-import * as Util from './util.js';
+import * as Util from './util/util.js';
 import * as Render2D from './render/render2D.js';
 import * as Render3D from './render/render3D.js';
 import * as Controls from './render/controls.js';

@@ -1,7 +1,7 @@
 // render/render2D.js — Canvas 2D rendering
 
 import * as Core from '../core.js';
-import * as Util from '../util.js';
+import * as Util from '../util/util.js';
 import * as Controls from './controls.js';
 
 const PHEROMONE_RENDER_CONFIG = [

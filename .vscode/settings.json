@@ -6,5 +6,5 @@
             "matchCommandLine": true
         }
     },
-    "liveServer.settings.wait": 60000
+    "liveServer.settings.wait": 3600000
 }

@@ -52,7 +52,7 @@ import {
   TILE, ANT_TYPE, ANT_SPEED, PATH_TOLERANCE, WANDER_DIST,
   EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
-import * as Util from '../util.js';
+import * as Util from '../util/util.js';
 import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from './physics.js';
 
 function getPheromoneValue(map, x, y, z) {

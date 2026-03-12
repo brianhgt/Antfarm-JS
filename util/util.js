@@ -2,7 +2,7 @@
 
 import {
   TILE, DEFAULT_TILE_HP, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state, DIRTY_STATE
-} from './core.js';
+} from '../core.js';
 
 // ─── Tile helpers ──────────────────────────────────────────────
 

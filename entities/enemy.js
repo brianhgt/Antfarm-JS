@@ -6,7 +6,7 @@ import {
 } from '../core.js';
 import {
   findPath, getRandomNearbyEmptyTile, setBlock, isMoveOutsideWorld
-} from '../util.js';
+} from '../util/util.js';
 
 export function getNearestAnt(s) {
   let nearest = null;

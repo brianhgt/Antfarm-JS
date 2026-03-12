@@ -8,7 +8,7 @@ import {
   tileType, isSolidTile, isDiggableTile, getBlockAt, setBlock,
   get3dHash, getRandMap, findPath, getRandomNearbyEmptyTile, isValidBlock,
   isMoveOutsideWorld
-} from '../util.js';
+} from '../util/util.js';
 import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from './physics.js';
 import * as Entity from '../entities/entity.js';
 

@@ -3,7 +3,7 @@ import {
   TILE, ANT_TYPE, ANT_SPEED, PATH_TOLERANCE, WANDER_DIST,
   EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
-import { isMoveOutsideWorld } from '../util.js';
+import { isMoveOutsideWorld } from '../util/util.js';
 
 import { countTotalEntities } from '../systems/ai.js';
 

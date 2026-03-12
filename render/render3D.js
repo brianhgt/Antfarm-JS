@@ -4,7 +4,7 @@ import {
   DIRTY_STATE,
   TILE, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state
 } from '../core.js';
-import * as Util from '../util.js';
+import * as Util from '../util/util.js';
 
 const SURFACE_Z = 1;
 const TERRAIN_REBUILD_MS = 450;
