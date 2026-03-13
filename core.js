@@ -98,7 +98,7 @@ export const state = {
   alarmPheromoneDeposit: 5.0, // Initial deposit amount of pheromones when placed
 
   footprintPheromoneMaps: [], // Array of colony pheromone maps keyed by tile hash -> strength
-  footprintPheromoneDecay: 0.2, // Amount to decay pheromones each tick
+  footprintPheromoneDecay: 0.05, // Amount to decay pheromones each tick
   footprintPheromoneDiffusion: 0.0, // Amount to diffuse pheromones each tick
   footprintPheromoneDeposit: 0.2, // Initial deposit amount of pheromones when placed
 

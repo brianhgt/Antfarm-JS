@@ -120,7 +120,7 @@ export function getPathJitter(entity, delta, magnitude = 0.16) {
 
 export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   let attempts = 0;
-  while (attempts < 20) {
+  while (attempts < 100) {
     const x = centerX + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
     const y = centerY + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
     const z = centerZ + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
@@ -173,7 +173,7 @@ export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, radius,
 
 
 
-export function moveTo(entity, x2,y2,z2, speed, delta) {
+export function moveTo(entity, x2, y2, z2, speed, delta) {
 
   const dx = x2 - entity.x;
   const dy = y2 - entity.y;
@@ -181,9 +181,9 @@ export function moveTo(entity, x2,y2,z2, speed, delta) {
   const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
   if (len < 0.1) {
-    entity.x = x2 + 0.5;
-    entity.y = y2 + 0.5;
-    entity.z = z2 + 0.5;
+    entity.x = x2;
+    entity.y = y2;
+    entity.z = z2;
     return true;
     } else {
       const step = speed * delta;
@@ -192,11 +192,11 @@ export function moveTo(entity, x2,y2,z2, speed, delta) {
       const nz = entity.z + step * dz / len;
 
       const nextTile = normalizeLocation(nx, ny, nz);
-      if (Util.isMoveOutsideWorld(nextTile.x, nextTile.y, nextTile.z)) {
+      if (isMoveOutsideWorld(nextTile.x, nextTile.y, nextTile.z)) {
         return false;
       }
 
-      if (Util.isDiggableTile(Util.getBlockAt(nextTile.x, nextTile.y, nextTile.z))) {
+      if (isDiggableTile(getBlockAt(nextTile.x, nextTile.y, nextTile.z))) {
         if(Physics.damageTileAt(nextTile.x, nextTile.y, nextTile.z, 10) > 0) {
           return false;
         }
@@ -208,6 +208,39 @@ export function moveTo(entity, x2,y2,z2, speed, delta) {
 }
 
 // ─── Direction Math ──────────────────────────────
+
+export function getDirection2(entity, x2, y2, z2) {
+  if (entity === undefined) return { yaw: 0, pitch: 0, roll: 0 };
+  return getDirection(entity.x, entity.y, entity.z, x2, y2, z2);
+}
+
+export function getDirection(x1, y1, z1, x2, y2, z2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dz = z2 - z1;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (len === 0) return { yaw: 0, pitch: 0, roll: 0 };
+
+  // Yaw: rotation around Z axis (in X-Y plane)
+  const yaw = Math.atan2(dy, dx);
+
+  // Pitch: rotation around Y axis (vertical angle)
+  const pitch = Math.atan2(dz, Math.sqrt(dx * dx + dy * dy));
+
+  // Roll: for a direction vector, roll is typically 0
+  const roll = 0;
+
+  return { yaw, pitch, roll };
+}
+
+export function getDirectionAsVector(entity, x2, y2, z2) {
+  const dx = x2 - entity.x;
+  const dy = y2 - entity.y;
+  const dz = z2 - entity.z;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (len === 0) return { x: 0, y: 0, z: 0 };
+  return {x: dx / len, y: dy / len, z: dz / len};
+}
 
 export function rotateDirection2D(direction, angleDeg) {
   const radians = angleDeg * Math.PI / 180;

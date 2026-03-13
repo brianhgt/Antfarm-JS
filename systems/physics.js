@@ -56,7 +56,28 @@ export function damageAnt(attacker, defender) {
 
 }
 
-function spawnFoodAt(x, y, z = 0) {
+export function pickupFood(ant, foodKey) {
+  const food = Core.state.foods.get(foodKey);
+  if (!food) return false;
+  Core.state.foods.delete(foodKey);
+  Core.state.foodDirty.set(foodKey, Core.DIRTY_STATE.DELETE);
+  ant.carrying = Core.TILE.FOOD;
+  return true;
+}
+
+export function pickupFoodAt(ant, foodX, foodY, foodZ) {
+  const foodKey = get3dHash(foodX, foodY, foodZ);
+  return pickupFood(ant, foodKey);
+}
+
+export function dropFood(ant, foodKey) {
+  if (!ant.carrying) return false;
+  const food = { x: ant.x, y: ant.y, z: ant.z, carry: false };
+  Core.state.foods.set(foodKey, food);
+  Core.state.foodDirty.set(foodKey, Core.DIRTY_STATE.CREATE);
+}
+
+export function spawnFoodAt(x, y, z = 0) {
   if (!isValidBlock(x, y, z) || isSolidTile(getBlockAt(x, y, z))) return false;
   const key = get3dHash(x, y, z);
   if (Core.state.foods.has(key)) return false;

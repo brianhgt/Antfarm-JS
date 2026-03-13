@@ -187,14 +187,13 @@ export function updateWorkers(col, colonyIndex, delta) {
     }
 
     // Pick up food
-    if (!ant.carrying && state.foods.has(get3dHash(antX, antY, antZ))) {
-      ant.carrying = TILE.FOOD;
-      const foodHash = get3dHash(antX, antY, antZ);
-      state.foods.delete(foodHash);
-      state.foodDirty.set(foodHash, DIRTY_STATE.DELETE);
-      ant.target = { x: col.nest.x, y: col.nest.y, z: col.nest.z };
-      ant.path = findPath(antX, antY, antZ, col.nest.x, col.nest.y, col.nest.z, PATH_TOLERANCE);
-      ant.pathIndex = 0;
+    const foodKey = get3dHash(antX, antY, antZ);
+    if (!ant.carrying && state.foods.has(foodKey)) {
+      if (pickupFood(ant, foodKey)) {
+        ant.target = { x: col.nest.x, y: col.nest.y, z: col.nest.z };
+        ant.path = findPath(antX, antY, antZ, col.nest.x, col.nest.y, col.nest.z, PATH_TOLERANCE);
+        ant.pathIndex = 0;
+      }
     }
 
     // Deliver food to nest
