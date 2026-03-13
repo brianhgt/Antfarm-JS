@@ -53,7 +53,7 @@ import {
   EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
 import * as Util from '../util/util.js';
-import { damageTileAt, depositAlarmPheromoneIfThreatened, depositPheromone } from './physics.js';
+import * as Physics from './physics.js';
 
 function getPheromoneValue(map, x, y, z) {
   if (!(map instanceof Map)) return 0;
@@ -100,11 +100,11 @@ function updateWorkerPheromoneTrail(ant, colonyIndex) {
   ant.lastPheromoneTile = currentTileKey;
 
   if (ant.carrying === TILE.FOOD) {
-    depositPheromone('trail', colonyIndex, antX, antY, antZ, ant.role === 'forager' ? 1.5 : 1);
+    Physics.depositPheromone('trail', colonyIndex, antX, antY, antZ, ant.role === 'forager' ? 1.5 : 1);
     return;
   }
 
-  depositPheromone('footprint', colonyIndex, antX, antY, antZ, ant.role === 'worker' ? 1.2 : 0.75);
+  Physics.depositPheromone('footprint', colonyIndex, antX, antY, antZ, ant.role === 'worker' ? 1.2 : 0.75);
 }
 
 function updateAlarmPheromone(entity, colonyIndex) {
@@ -113,7 +113,7 @@ function updateAlarmPheromone(entity, colonyIndex) {
   const antZ = Math.floor(entity.z);
   const currentTileKey = Util.get3dHash(antX, antY, antZ);
   if(Physics.isThreatened(colonyIndex, antX, antY, antZ)) {
-    depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
+    Physics.depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
   }
   // if (entity.lastAlarmPheromoneTile === currentTileKey) return;
   // if (depositAlarmPheromoneIfThreatened(colonyIndex, antX, antY, antZ)) {
@@ -146,14 +146,16 @@ function chooseRecruitmentTarget(col, ant) {
   const currentX = Math.floor(ant.x);
   const currentY = Math.floor(ant.y);
   const currentZ = Math.floor(ant.z);
+
   const trailMap = col.pheromones?.trail;
   const alarmMap = col.pheromones?.alarm;
+
   let bestTarget = null;
   let bestScore = 0.9;
 
   /*  Sample random nearby tiles and choose the one with the strongest
    *  trail pheromone, adjusted by alarm pheromone and distance to nest.
-   *  Needs direction, distance, gradient, and crowding heuristics
+   *  Needs direction, gradient, and crowding heuristics
    */
   for (let i = 0; i < 24; i++) {
     const candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 9);
@@ -163,7 +165,7 @@ function chooseRecruitmentTarget(col, ant) {
 
     const alarm = getPheromoneValue(alarmMap, candidate.x, candidate.y, candidate.z);
 
-    const nestDist = getNestDistance(col, candidate.x, candidate.y, candidate.z);
+    //const nestDist = getNestDistance(col, candidate.x, candidate.y, candidate.z);
 
     const crowding = getWorkerCrowding(col, ant,
        candidate.x + 0.5, candidate.y + 0.5, candidate.z + 0.5);
@@ -303,7 +305,7 @@ export function updateWorkers(col, colonyIndex, delta) {
     const antZ = Math.floor(ant.z);
 
     if(Physics.isThreatened(colonyIndex, antX, antY, antZ)) {
-      depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
+      Physics.depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
       //TODO set random path
       //TODO find enemy and attack
     }
@@ -312,7 +314,7 @@ export function updateWorkers(col, colonyIndex, delta) {
       chooseIdleTarget(col, ant);
     }
 
-    if(Entity.moveAlongPath(ant, ANT_SPEED, delta)) {
+    if(Util.moveTo(ant, ant.path[entity.pathIndex], ANT_SPEED, delta)) {
       ant.pathIndex++;
     }
 

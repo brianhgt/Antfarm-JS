@@ -2,7 +2,7 @@
 
 import * as Core from '../core.js';
 import * as Util from '../util/util.js';
-import * as ColorUtil from '../util/color.js';
+import * as ColorUtil from '../util/ColorUtil.js';
 import * as Controls from './controls.js';
 
 const PHEROMONE_RENDER_CONFIG = [

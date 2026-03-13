@@ -120,7 +120,7 @@ export function getPathJitter(entity, delta, magnitude = 0.16) {
 
 export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   let attempts = 0;
-  while (attempts < 100) {
+  while (attempts < 20) {
     const x = centerX + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
     const y = centerY + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
     const z = centerZ + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
@@ -131,6 +131,47 @@ export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   }
   return null;
 }
+
+export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, radius, direction) {
+  // Choose a random empty tile within a 45-degree arc centered on `direction`.
+  // `direction` may be an object with `yaw` (degrees) or a vector `{x,y,z}`.
+  if (!direction) return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+
+  const toRadians = deg => deg * Math.PI / 180;
+  let yawRad = 0;
+
+  if (typeof direction === 'object') {
+    if (typeof direction.yaw === 'number') {
+      yawRad = toRadians(direction.yaw);
+    } else if (typeof direction.x === 'number' && typeof direction.y === 'number') {
+      yawRad = Math.atan2(direction.y, direction.x);
+    } else {
+      return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+    }
+  } else {
+    return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+  }
+
+  const halfArc = toRadians(45) / 2; // ±22.5° around the given direction
+  const maxAttempts = 40;
+  const r = Math.max(1, Math.floor(radius || 1));
+
+  for (let attempts = 0; attempts < maxAttempts; attempts++) {
+    const angle = yawRad + (Math.random() * 2 - 1) * halfArc;
+    const dist = 1 + Math.floor(Math.random() * r); // distance 1..r
+    const rx = Math.round(centerX + Math.cos(angle) * dist);
+    const ry = Math.round(centerY + Math.sin(angle) * dist);
+    const rz = centerZ;
+
+    if (!isValidBlock(rx, ry, rz)) continue;
+    if (tileType(getBlockAt(rx, ry, rz)) === TILE.EMPTY) return { x: rx, y: ry, z: rz };
+  }
+
+  // fallback
+  return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+}
+
+
 
 export function moveTo(entity, x2,y2,z2, speed, delta) {
 
