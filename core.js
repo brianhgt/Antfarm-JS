@@ -72,6 +72,8 @@ export const DIRTY_STATE = {
   DELETE: 'DELETE'
 };
 
+export const random = new Math.seedrandom('123456789');
+
 export const state = {
   // World
   viewMap: [],            // 3D array [x][y][z]

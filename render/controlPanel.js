@@ -101,8 +101,8 @@ export function initControlPanel(jq) {
     jq('#numSpidersValue').text(state.numSpiders);
     while (state.spiders.length < state.numSpiders) {
       state.spiders.push({
-        x: Math.random() * WORLD_X_MAX,
-        y: Math.random() * WORLD_Y_MAX,
+        x: Core.random() * WORLD_X_MAX,
+        y: Core.random() * WORLD_Y_MAX,
         z: 0, target: null, path: null, pathIndex: 0,
         timer: EGG_HATCH_TIME, cooldownTimer: SPIDER_COOLDOWN
       });

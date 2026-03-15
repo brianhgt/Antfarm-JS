@@ -3,6 +3,7 @@ import {
   TILE, ANT_TYPE, ANT_SPEED, PATH_TOLERANCE, WANDER_DIST,
   EGG_HATCH_TIME, state, DIRTY_STATE
 } from '../core.js';
+import * as Core from '../core.js';
 import * as Util from '../util/util.js';
 
 import { countTotalEntities } from '../systems/ai.js';
@@ -55,7 +56,7 @@ export function addNewAnt(colony, type, x, y, z) {
   }
 
   const workerRole = colony.aiType === 'pheromone'
-    ? (Math.random() < (colony.foragerRatio ?? 0.25) ? 'forager' : 'worker')
+    ? (Core.random() < (colony.foragerRatio ?? 0.25) ? 'forager' : 'worker')
     : 'worker';
 
   if (type === ANT_TYPE.SOLDIER) {

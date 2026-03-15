@@ -5,6 +5,7 @@ import {
   WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, NEST_MAX_DEPTH, DEFAULT_NEST_Y,
   state
 } from './core.js';
+import * as Core from './core.js';
 import * as Util from './util/util.js';
 import * as Render2D from './render/render2D.js';
 import * as Render3D from './render/render3D.js';
@@ -36,8 +37,8 @@ function initWorld() {
 
   // Initial food on surface
   for (let i = 0; i < state.foodSpawnAmount; i++) {
-    const fx = Math.floor(Math.random() * WORLD_X_MAX);
-    const fy = Math.floor(Math.random() * WORLD_Y_MAX);
+    const fx = Math.floor(Core.random() * WORLD_X_MAX);
+    const fy = Math.floor(Core.random() * WORLD_Y_MAX);
     const fz = 0;
     state.foods.set(Util.get3dHash(fx, fy, fz), { x: fx, y: fy, z: fz, carry: false });
   }
@@ -72,8 +73,8 @@ function initWorld() {
   // Spiders
   for (let i = 0; i < state.numSpiders; i++) {
     state.spiders.push({
-      x: Math.floor(Math.random() * WORLD_X_MAX),
-      y: Math.floor(Math.random() * WORLD_Y_MAX),
+      x: Math.floor(Core.random() * WORLD_X_MAX),
+      y: Math.floor(Core.random() * WORLD_Y_MAX),
       z: 0,
       target: null, path: null, pathIndex: 0,
       timer: EGG_HATCH_TIME, cooldownTimer: SPIDER_COOLDOWN
@@ -82,9 +83,9 @@ function initWorld() {
 
   // Initialize nests
   state.colonies.forEach((col, colIdx) => {
-    const nx = 4 + Math.floor(Math.random() * (WORLD_X_MAX - 4));
+    const nx = 4 + Math.floor(Core.random() * (WORLD_X_MAX - 4));
     const ny = DEFAULT_NEST_Y;
-    const nz = 2 + 1 + Math.min(Math.floor(Math.random() * (WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
+    const nz = 2 + 1 + Math.min(Math.floor(Core.random() * (WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
 
     Util.setBlock(nx, ny, nz, TILE.NEST);
     Util.setBlock(nx, ny, nz + 1, TILE.NEST);
@@ -110,8 +111,8 @@ function initWorld() {
     let xShift = 0;
     for (let z = nz + 2; z > 0; z--) {
       Util.setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
-      if (Math.random() < 0.1) {
-        xShift += Math.ceil(Math.random() * 3 - 2);
+      if (Core.random() < 0.1) {
+        xShift += Math.ceil(Core.random() * 3 - 2);
         Util.setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
       }
     }
@@ -120,7 +121,7 @@ function initWorld() {
     col.player = { x: nx + 0.5, y: ny + 0.5, z: nz + 0.5, carrying: null };
 
     // Spawn initial egg(s)
-    for (let i = 0; i <= 3; i++) {
+    for (let i = 0; i <= 6; i++) {
       const {x, y, z} = Util.getRandomNearbyEmptyTile(nx, ny, nz, 2);
       col.eggs.set(Util.get3dHash(x, y, z), {
         x: x, y: y, z: z,

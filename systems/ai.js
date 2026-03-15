@@ -28,7 +28,7 @@ export function countTotalEntities() {
 // ─── Egg spawning ─────────────────────────────────────────────
 
 export function spawnEggNearNest(col, type = ANT_TYPE.WORKER) {
-  const angle = Math.random() * Math.PI * 2;
+  const angle = Core.random() * Math.PI * 2;
   const ex = col.nest.x + Math.floor(Math.cos(angle) * 2);
   const ez = col.nest.z + Math.floor(Math.sin(angle) * 2);
   const ey = col.nest.y;

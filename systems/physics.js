@@ -92,8 +92,8 @@ export function spawnFood(delta) {
   if (Core.state.foodSpawnTimer <= 0) {
     Core.state.foodSpawnTimer = Core.state.foodSpawnInterval;
     for (let i = 0; i < Core.state.foodSpawnAmount; i++) {
-      const fx = Math.floor(Math.random() * Core.WORLD_X_MAX);
-      const fy = Math.floor(Math.random() * Core.WORLD_Y_MAX);
+      const fx = Math.floor(Core.random() * Core.WORLD_X_MAX);
+      const fy = Math.floor(Core.random() * Core.WORLD_Y_MAX);
       const fz = 0;
       spawnFoodAt(fx, fy, fz);
     }
@@ -110,8 +110,8 @@ function spawnFoodClump(centerX, centerY, centerZ = 0) {
 
   let attempts = 0;
   while (spawned < size && attempts < size * 12) {
-    const fx = centerX + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
-    const fy = centerY + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
+    const fx = centerX + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
+    const fy = centerY + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
     spawned += spawnFoodAt(fx, fy, centerZ) ? 1 : 0;
     attempts++;
   }
@@ -125,8 +125,8 @@ export function spawnFoodClumps(delta) {
   const clumpCount = Math.max(1, Core.state.foodClumpSpawnAmount ?? 1);
 
   for (let i = 0; i < clumpCount; i++) {
-    const fx = Math.floor(Math.random() * Core.WORLD_X_MAX);
-    const fy = Math.floor(Math.random() * Core.WORLD_Y_MAX);
+    const fx = Math.floor(Core.random() * Core.WORLD_X_MAX);
+    const fy = Math.floor(Core.random() * Core.WORLD_Y_MAX);
     spawnFoodClump(fx, fy, 0);
   }
 }

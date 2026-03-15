@@ -1,8 +1,9 @@
 // util.js — Pure utility functions (tile ops, hashing, pathfinding, color)
 
 import {
-  TILE, DEFAULT_TILE_HP, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state, DIRTY_STATE
+  TILE, DEFAULT_TILE_HP, WORLD_X_MAX, WORLD_Y_MAX, WORLD_Z_MAX, state, DIRTY_STATE, random
 } from '../core.js';
+import * as Core from '../core.js';
 import * as Physics from '../systems/physics.js';
 
 // ─── Tile helpers ──────────────────────────────────────────────
@@ -106,24 +107,29 @@ export function get3dHash(x, y, z) {
 export function getRandMap(map) {
   const values = Array.from(map.values());
   if (values.length === 0) return undefined;
-  return values[Math.floor(Math.random() * values.length)];
+  return values[Math.floor(Core.random() * values.length)];
 }
 
 // ─── Entity helpers ────────────────────────────────────────────
 
 export function getPathJitter(entity, delta, magnitude = 0.16) {
-  const jitterX = (Math.random() - 0.5) * magnitude * delta;
-  const jitterY = (Math.random() - 0.5) * magnitude * delta;
-  const jitterZ = (Math.random() - 0.5) * magnitude * delta;
+  const jitterX = (Core.random() - 0.5) * magnitude * delta;
+  const jitterY = (Core.random() - 0.5) * magnitude * delta;
+  const jitterZ = (Core.random() - 0.5) * magnitude * delta;
   return { x: entity.x + jitterX, y: entity.y + jitterY, z: entity.z + jitterZ };
 }
 
 export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   let attempts = 0;
   while (attempts < 100) {
-    const x = centerX + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
-    const y = centerY + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
-    const z = centerZ + Math.floor(Math.random() * (radius * 2 + 1)) - radius;
+    const x = centerX + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
+    const y = centerY + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
+    const z = centerZ + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
+    // Avoid returning the center tile so entities move off their current cell.
+    if (x === centerX && y === centerY && z === centerZ) {
+      attempts++;
+      continue;
+    }
     if (isValidBlock(x, y, z) && tileType(getBlockAt(x, y, z)) === TILE.EMPTY) {
       return { x, y, z };
     }
@@ -152,13 +158,13 @@ export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, radius,
     return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
   }
 
-  const halfArc = toRadians(45) / 2; // ±22.5° around the given direction
+  const halfArc = toRadians(90) / 2; // ±45° around the given direction
   const maxAttempts = 40;
   const r = Math.max(1, Math.floor(radius || 1));
 
   for (let attempts = 0; attempts < maxAttempts; attempts++) {
-    const angle = yawRad + (Math.random() * 2 - 1) * halfArc;
-    const dist = 1 + Math.floor(Math.random() * r); // distance 1..r
+    const angle = yawRad + (Core.random() * 2 - 1) * halfArc;
+    const dist = 1 + Math.floor(Core.random() * r); // distance 1..r
     const rx = Math.round(centerX + Math.cos(angle) * dist);
     const ry = Math.round(centerY + Math.sin(angle) * dist);
     const rz = centerZ;
@@ -209,6 +215,13 @@ export function moveTo(entity, x2, y2, z2, speed, delta) {
 
 // ─── Direction Math ──────────────────────────────
 
+export function getDistance(x1, y1, z1, x2, y2, z2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dz = z2 - z1;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 export function getDirection2(entity, x2, y2, z2) {
   if (entity === undefined) return { yaw: 0, pitch: 0, roll: 0 };
   return getDirection(entity.x, entity.y, entity.z, x2, y2, z2);
@@ -222,10 +235,10 @@ export function getDirection(x1, y1, z1, x2, y2, z2) {
   if (len === 0) return { yaw: 0, pitch: 0, roll: 0 };
 
   // Yaw: rotation around Z axis (in X-Y plane)
-  const yaw = Math.atan2(dy, dx);
+  const yaw = Math.atan2(dy, dx) * 180 / Math.PI;
 
   // Pitch: rotation around Y axis (vertical angle)
-  const pitch = Math.atan2(dz, Math.sqrt(dx * dx + dy * dy));
+  const pitch = Math.atan2(dz, Math.sqrt(dx * dx + dy * dy)) * 180 / Math.PI;
 
   // Roll: for a direction vector, roll is typically 0
   const roll = 0;
@@ -233,13 +246,21 @@ export function getDirection(x1, y1, z1, x2, y2, z2) {
   return { yaw, pitch, roll };
 }
 
-export function getDirectionAsVector(entity, x2, y2, z2) {
-  const dx = x2 - entity.x;
-  const dy = y2 - entity.y;
-  const dz = z2 - entity.z;
+export function getDirectionAsVectorEntity(entity, x2, y2, z2) {
+  return getDirectionAsVector(entity.x, entity.y, entity.z, x2, y2, z2);
+}
+
+export function getDirectionAsVector(x1, y1, z1, x2, y2, z2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dz = z2 - z1;
   const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
   if (len === 0) return { x: 0, y: 0, z: 0 };
   return {x: dx / len, y: dy / len, z: dz / len};
+}
+
+export function dotProduct(v1, v2) {
+  return v1.x * v2.x + v1.y * v2.y + (v1.z ?? 0) * (v2.z ?? 0);
 }
 
 export function rotateDirection2D(direction, angleDeg) {
@@ -262,7 +283,7 @@ export function blendDirections(a, b, amount = 0.5) {
 }
 
 export function getRandomTurnDirection(baseDirection, maxAngleDeg = 20) {
-  const randomAngle = ((Math.random() * 2) - 1) * maxAngleDeg;
+  const randomAngle = ((Core.random() * 2) - 1) * maxAngleDeg;
   return rotateDirection2D(baseDirection, randomAngle);
 }
 
@@ -327,7 +348,7 @@ export class MinHeap {
       if (this.items[i].f <= threshold) candidateIndices.push(i);
     }
     if (candidateIndices.length === 0) return this.pop();
-    const pickIndex = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
+    const pickIndex = candidateIndices[Math.floor(Core.random() * candidateIndices.length)];
     return this.removeAt(pickIndex);
   }
   removeAt(index) {
@@ -395,9 +416,7 @@ export function findPath(startX, startY, startZ, goalX, goalY, goalZ, tolerance 
     }
 
     closed.add(currK);
-    const neighborDirs = tolerance > 0 && Math.random() < 0.1
-      ? [...dirs].sort(() => Math.random() - 0.5)
-      : dirs;
+    const neighborDirs = [...dirs].sort(() => Core.random() - 0.5);
 
     for (let d of neighborDirs) {
       let nx = current.x + d.x;
