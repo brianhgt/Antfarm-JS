@@ -13,6 +13,31 @@ const PHEROMONE_RENDER_CONFIG = [
 
 const NEST_Y_FADE_RANGE = 8;
 
+function formatEvaluationValue(value) {
+  if (!Number.isFinite(value)) return '';
+
+  const roundedValue = Math.abs(value) < 0.05 ? 0 : value;
+  if (Math.abs(roundedValue) >= 100) return Math.round(roundedValue).toString();
+  if (Math.abs(roundedValue) >= 10) return roundedValue.toFixed(0);
+  return roundedValue.toFixed(1);
+}
+
+function isTileVisibleInView(x, y, z, currentView, focusY, visible, cullBuffer = 1) {
+  if (currentView === 'nest') {
+    return Math.floor(y) === focusY &&
+      x >= Math.floor(Core.state.camera1X) - cullBuffer &&
+      x <= Math.ceil(Core.state.camera1X + visible.width + cullBuffer) &&
+      z >= Math.floor(Core.state.camera1Y) - cullBuffer &&
+      z <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
+  }
+
+  return z === 0 &&
+    y >= Math.floor(Core.state.camera1X) - cullBuffer &&
+    y <= Math.ceil(Core.state.camera1X + visible.width + cullBuffer) &&
+    x >= Math.floor(Core.state.camera1Y) - cullBuffer &&
+    x <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
+}
+
 let surfaceTerrainCanvas = null;
 let surfaceTerrainCtx = null;
 let nestTerrainCanvas = null;
@@ -308,21 +333,6 @@ export function drawForeground() {
     const dist = Math.abs(Math.floor(y) - focusY);
     return Math.max(minAlpha, 1 - Math.min(1, dist / NEST_Y_FADE_RANGE));
   };
-  const pheromoneVisible = (x, y, z) => {
-    if (isNest) {
-      return Math.floor(y) === focusY &&
-        x >= Math.floor(Core.state.camera1X) - cullBuffer &&
-        x <= Math.ceil(Core.state.camera1X + visible.width + cullBuffer) &&
-        z >= Math.floor(Core.state.camera1Y) - cullBuffer &&
-        z <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
-    }
-
-    return z === 0 &&
-      y >= Math.floor(Core.state.camera1X) - cullBuffer &&
-      y <= Math.ceil(Core.state.camera1X + visible.width + cullBuffer) &&
-      x >= Math.floor(Core.state.camera1Y) - cullBuffer &&
-      x <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
-  };
 
   // ── Pheromones ──
 
@@ -337,7 +347,7 @@ export function drawForeground() {
       pheromoneMap.forEach((strength, key) => {
         if (strength <= Core.PHEROMONE_MIN_STRENGTH) return;
         const { x, y, z } = Util.getBlockLocationAtKey(key);
-        if (!pheromoneVisible(x, y, z)) return;
+        if (!isTileVisibleInView(x, y, z, Core.state.currentView, focusY, visible, cullBuffer)) return;
         queueRect(
           x, y, z,
           color,
@@ -428,17 +438,62 @@ export function drawDebug() {
   ctx.save();
   ctx.translate(-Core.state.camera1X * Core.TILE_SIZE, -Core.state.camera1Y * Core.TILE_SIZE);
 
-  Core.state.colonies.forEach(col => {
-    col.workers.forEach(w => {
-      if (w.path) {
+  const visible = Controls.getVisibleBlocks();
+  const focusY = getFocusY();
+  const colonyCount = Math.max(1, Core.state.colonies.length);
+
+  if (Core.state.showDebugPaths) {
+    Core.state.colonies.forEach(col => {
+      col.workers.forEach(w => {
+        if (!w.path) return;
+
         ctx.fillStyle = ColorUtil.hexToRgba("#ffff00", (1.0 - (w.pathIndex / w.path.length)) * 0.15);
         w.path.forEach(next => {
+          if (!isTileVisibleInView(next.x, next.y, next.z, Core.state.currentView, focusY, visible)) return;
           const t = worldToScreenView(next.x, next.y, next.z, Core.state.currentView);
           ctx.fillRect(t.sx, t.sy, Core.TILE_SIZE, Core.TILE_SIZE);
         });
-      }
+      });
     });
-  });
+  }
+
+  if (Core.state.showEvaluationMap) {
+    ctx.save();
+    ctx.font = `bold ${Math.max(9, Math.floor(Core.TILE_SIZE * 0.44))}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    Core.state.colonies.forEach((col, colonyIndex) => {
+      if (!(col.evaluationMap instanceof Map)) return;
+
+      const textColor = col.pheromoneColors?.trail ?? col.color ?? '#ffffff';
+      const yOffset = (colonyIndex - ((colonyCount - 1) / 2)) * (Core.TILE_SIZE * 0.28);
+
+      col.evaluationMap.forEach((entry, key) => {
+        if (!entry || !Number.isFinite(entry.value)) return;
+
+        const { x, y, z } = Util.getBlockLocationAtKey(key);
+        if (!isTileVisibleInView(x, y, z, Core.state.currentView, focusY, visible)) return;
+
+        const tile = worldToScreenView(x, y, z, Core.state.currentView);
+        const alpha = entry.maxDecayTime > 0
+          ? Math.max(0.18, Math.min(1, entry.decayTime / entry.maxDecayTime))
+          : 1;
+        const label = formatEvaluationValue(entry.value);
+        const centerX = tile.sx + (Core.TILE_SIZE / 2);
+        const centerY = tile.sy + (Core.TILE_SIZE / 2) + yOffset;
+
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.strokeText(label, centerX, centerY);
+        ctx.fillStyle = textColor;
+        ctx.fillText(label, centerX, centerY);
+      });
+    });
+
+    ctx.restore();
+  }
 
   ctx.restore();
 }

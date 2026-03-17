@@ -91,6 +91,11 @@ function setPathToTarget(ant, target, tolerance = Util.PATH_TOLERANCE) {
   return true;
 }
 
+function recordCandidateEvaluation(col, candidate, score) {
+  if (!candidate || !Number.isFinite(score)) return;
+  Physics.recordTileEvaluation(col.index, candidate.x, candidate.y, candidate.z, score);
+}
+
 
 function updateWorkerPheromoneTrail(ant, colonyIndex) {
   const antX = Math.floor(ant.x);
@@ -200,6 +205,7 @@ function getLocalGradientCandidate(col, ant, maxDist = 3) {
     const surfaceBias = (col.nest && typeof col.nest.z === 'number') ? (col.nest.z - z) : 0;
 
     let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, 0);
+    recordCandidateEvaluation(col, { x, y, z }, score);
 
     if (score > bestScore) {
       bestScore = score;
@@ -236,14 +242,14 @@ function chooseRecruitmentTarget(col, ant) {
     //const candidate = Util.getRandomEmptyTileInDirection(currentX, currentY, currentZ, 9,
       // ant.direction);
     if (Core.random() < 0.6) {
-      candidate = localCandidate || Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 9);
+      candidate = localCandidate || Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 4, 9);
     } else {
-      candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 9);
+      candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 4, 9);
     }
     if (!candidate) continue;
 
     const footprint = Math.min(getPheromoneValue(footprintMap, candidate.x, candidate.y, candidate.z), 2);
-    const trail = Math.min(getPheromoneValue(trailMap, candidate.x, candidate.y, candidate.z), 6);
+    const trail = Math.min(getPheromoneValue(trailMap, candidate.x, candidate.y, candidate.z), 3);
     const alarm = Math.min(getPheromoneValue(alarmMap, candidate.x, candidate.y, candidate.z), 4);
     const crowding = getWorkerCrowding(col, ant, candidate.x + 0.5, candidate.y + 0.5, candidate.z + 0.5);
 
@@ -252,6 +258,7 @@ function chooseRecruitmentTarget(col, ant) {
     const alignmentWithNest =  Math.min(Math.abs(Util.dotProduct(candidateVector, nestVector)), 1.0);
 
     const score = calculateScore(ant, footprint, trail, alarm, crowding, 0, alignmentWithNest);
+    recordCandidateEvaluation(col, candidate, score);
 
     if (score > bestScore) {
       bestScore = score;
@@ -265,7 +272,7 @@ function chooseRecruitmentTarget(col, ant) {
 function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest) {
   let score;
     if (ant.carrying === Core.TILE.FOOD) {
-      score = (footprint * 2.4)
+      score = (footprint * 0.8)
         + (trail * 0.7)
         - (alarm * 4.0)
         - (crowding * 3.8)
@@ -279,13 +286,13 @@ function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, ali
         + (surfaceBias * 0.9)
         - (alignmentWithNest * 1.0);;
     } else {
-      score = (footprint * 1.4)
+      score = (footprint * 0.8)
         + (trail * 3.4)
         - (alarm * 4.0)
         - (crowding * 3.8)
         - (Math.max(0, footprint - 0.8) * 1.8)
         + (Math.min(trail, 2.5) * 0.18)
-        + (alignmentWithNest * 1.0);
+        + (alignmentWithNest * 0.5);
     }
   return score;
 }
@@ -313,9 +320,9 @@ function chooseScoredTarget(col, ant) {
       // ant.direction);
       
     if (Core.random() < 0.6) {
-      candidate = localCandidate || Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, radius);
+      candidate = localCandidate || Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 2, radius);
     } else {
-      candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, radius);
+      candidate = Util.getRandomNearbyEmptyTile(currentX, currentY, currentZ, 2, radius);
     }
     if (!candidate) continue;
 
@@ -331,6 +338,7 @@ function chooseScoredTarget(col, ant) {
     const alignmentWithNest = Util.dotProduct(candidateVector, nestVector);
 
     let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest);
+    recordCandidateEvaluation(col, candidate, score);
 
     if (score > bestScore) {
       bestScore = score;
@@ -368,7 +376,7 @@ function chooseIdleTarget(col, ant) {
   */
 
   const target = chooseScoredTarget(col, ant) || Util.getRandomNearbyEmptyTile(
-    Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), ant.role === 'forager' ? 10 : 6
+    Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), 5, ant.role === 'forager' ? 10 : 6
   );
   return setPathToTarget(ant, target, Core.PATH_TOLERANCE * (ant.role === 'forager' ? 1.4 : 2.0));
 }

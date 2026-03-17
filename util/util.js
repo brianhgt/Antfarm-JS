@@ -119,12 +119,27 @@ export function getPathJitter(entity, delta, magnitude = 0.16) {
   return { x: entity.x + jitterX, y: entity.y + jitterY, z: entity.z + jitterZ };
 }
 
-export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
+export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, minRadius, maxRadius) {
+  const resolvedMaxRadius = Math.max(0, Math.floor(maxRadius ?? minRadius ?? 0));
+  const resolvedMinRadius = Math.max(0, Math.floor(maxRadius === undefined ? 0 : (minRadius ?? 0)));
+
+  if (resolvedMinRadius > resolvedMaxRadius) return null;
+
   let attempts = 0;
   while (attempts < 100) {
-    const x = centerX + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
-    const y = centerY + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
-    const z = centerZ + Math.floor(Core.random() * (radius * 2 + 1)) - radius;
+    const x = centerX + Math.floor(Core.random() * (resolvedMaxRadius * 2 + 1)) - resolvedMaxRadius;
+    const y = centerY + Math.floor(Core.random() * (resolvedMaxRadius * 2 + 1)) - resolvedMaxRadius;
+    const z = centerZ + Math.floor(Core.random() * (resolvedMaxRadius * 2 + 1)) - resolvedMaxRadius;
+    const dx = Math.abs(x - centerX);
+    const dy = Math.abs(y - centerY);
+    const dz = Math.abs(z - centerZ);
+    const radius = Math.max(dx, dy, dz);
+
+    if (radius < resolvedMinRadius) {
+      attempts++;
+      continue;
+    }
+
     // Avoid returning the center tile so entities move off their current cell.
     if (x === centerX && y === centerY && z === centerZ) {
       attempts++;
@@ -138,10 +153,10 @@ export function getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius) {
   return null;
 }
 
-export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, radius, direction) {
+export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, minRadius, maxRadius, direction) {
   // Choose a random empty tile within a 45-degree arc centered on `direction`.
   // `direction` may be an object with `yaw` (degrees) or a vector `{x,y,z}`.
-  if (!direction) return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+  if (!direction) return getRandomNearbyEmptyTile(centerX, centerY, centerZ, minRadius, maxRadius);
 
   const toRadians = deg => deg * Math.PI / 180;
   let yawRad = 0;
@@ -152,19 +167,19 @@ export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, radius,
     } else if (typeof direction.x === 'number' && typeof direction.y === 'number') {
       yawRad = Math.atan2(direction.y, direction.x);
     } else {
-      return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+      return getRandomNearbyEmptyTile(centerX, centerY, centerZ, minRadius, maxRadius);
     }
   } else {
-    return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+    return getRandomNearbyEmptyTile(centerX, centerY, centerZ, minRadius, maxRadius);
   }
 
   const halfArc = toRadians(90) / 2; // ±45° around the given direction
   const maxAttempts = 40;
-  const r = Math.max(1, Math.floor(radius || 1));
+  const r = Math.max(1, Math.floor(maxRadius || 1));
 
   for (let attempts = 0; attempts < maxAttempts; attempts++) {
     const angle = yawRad + (Core.random() * 2 - 1) * halfArc;
-    const dist = 1 + Math.floor(Core.random() * r); // distance 1..r
+    const dist = minRadius + Math.floor(Core.random() * (r - minRadius + 1)); // distance minRadius..r
     const rx = Math.round(centerX + Math.cos(angle) * dist);
     const ry = Math.round(centerY + Math.sin(angle) * dist);
     const rz = centerZ;
@@ -174,7 +189,7 @@ export function getRandomEmptyTileInDirection(centerX, centerY, centerZ, radius,
   }
 
   // fallback
-  return getRandomNearbyEmptyTile(centerX, centerY, centerZ, radius);
+  return getRandomNearbyEmptyTile(centerX, centerY, centerZ, minRadius, maxRadius);
 }
 
 

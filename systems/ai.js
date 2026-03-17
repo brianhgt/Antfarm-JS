@@ -135,7 +135,7 @@ export function updateWorkers(col, colonyIndex, delta) {
         }
       } else {
         const wander = getRandomNearbyEmptyTile(
-          Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), WANDER_DIST
+          Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), 1, WANDER_DIST
         );
         if (wander) {
           ant.target = wander;
@@ -214,7 +214,7 @@ export function updateSoldiers(col, colonyIndex, delta) {
   col.soldiers.forEach(ant => {
     if (!ant.path) {
       const wander = getRandomNearbyEmptyTile(
-        Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), 5
+        Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), 2, 5
       );
       if (wander) {
         ant.target = wander;

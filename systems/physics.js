@@ -2,7 +2,7 @@
 
 import * as Core from '../core.js';
 import {
-  isDiggableTile, isSolidTile, getBlockAt, setBlock, get3dHash, isValidBlock
+  isDiggableTile, isSolidTile, getBlockAt, setBlock, get3dHash, getBlockLocationAtKey, isValidBlock
 } from '../util/util.js';
 
 const PHEROMONE_CONFIG = {
@@ -152,6 +152,21 @@ function getColonyPheromoneMap(colonyIndex, type) {
   return colony.pheromones[config.colonyTypeKey];
 }
 
+function getColonyEvaluationMap(colonyIndex) {
+  const colony = Core.state.colonies[colonyIndex];
+  if (!colony) return null;
+
+  if (!(colony.evaluationMap instanceof Map)) {
+    colony.evaluationMap = new Map();
+  }
+
+  if (!Array.isArray(Core.state.evaluationMaps)) {
+    Core.state.evaluationMaps = [];
+  }
+  Core.state.evaluationMaps[colonyIndex] = colony.evaluationMap;
+  return colony.evaluationMap;
+}
+
 function getFoodCountInRadius(x, y, z, radius = Core.PHEROMONE_FOOD_RADIUS) {
   const radiusSq = radius * radius;
   let count = 0;
@@ -244,6 +259,24 @@ export function depositPheromone(type, colonyIndex, x, y, z, multiplier = 1) {
   return strength;
 }
 
+export function recordTileEvaluation(colonyIndex, x, y, z, value, decayTime = Core.state.evaluationMapDecayTime) {
+  if (!Number.isFinite(value)) return null;
+  if (!isValidBlock(x, y, z) || isSolidTile(getBlockAt(x, y, z))) return null;
+
+  const evaluationMap = getColonyEvaluationMap(colonyIndex);
+  if (!(evaluationMap instanceof Map)) return null;
+
+  const lifetime = Math.max(0, decayTime || 0);
+  const entry = {
+    value,
+    decayTime: lifetime,
+    maxDecayTime: lifetime
+  };
+
+  evaluationMap.set(get3dHash(x, y, z), entry);
+  return entry;
+}
+
 export function isEnemyAntNearby(colonyIndex, x, y, z, radius = Core.ENEMY_ANT_ALARM_RADIUS) {
   const radiusSq = radius * radius;
 
@@ -295,6 +328,29 @@ export function updatePheromones(delta) {
     Core.state.colonies.forEach((_, colonyIndex) => {
       const pheromoneMap = getColonyPheromoneMap(colonyIndex, config.colonyTypeKey);
       updatePheromoneMap(pheromoneMap, config.decayKey, config.diffusionKey, delta);
+    });
+  });
+}
+
+export function updateEvaluationMaps(delta) {
+  const tickScale = Math.max(0, delta);
+  if (tickScale <= 0) return;
+
+  Core.state.colonies.forEach((_, colonyIndex) => {
+    const evaluationMap = getColonyEvaluationMap(colonyIndex);
+    if (!(evaluationMap instanceof Map) || evaluationMap.size === 0) return;
+
+    evaluationMap.forEach((entry, key) => {
+      const { x, y, z } = getBlockLocationAtKey(key);
+      if (!entry || !Number.isFinite(entry.value) || !isValidBlock(x, y, z) || isSolidTile(getBlockAt(x, y, z))) {
+        evaluationMap.delete(key);
+        return;
+      }
+
+      entry.decayTime = Math.max(0, (entry.decayTime ?? 0) - tickScale);
+      if (entry.decayTime <= 0) {
+        evaluationMap.delete(key);
+      }
     });
   });
 }

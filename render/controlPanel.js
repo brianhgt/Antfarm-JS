@@ -75,9 +75,16 @@ export function initControlPanel(jq) {
 
   // ── Controls ──
 
+  jq('#showPathsCheck').prop('checked', state.showDebugPaths);
   jq('#showPathsCheck').on('change', function () {
     clearDebug();
     state.showDebugPaths = jq(this).is(':checked');
+  });
+
+  jq('#showEvaluationsCheck').prop('checked', state.showEvaluationMap);
+  jq('#showEvaluationsCheck').on('change', function () {
+    clearDebug();
+    state.showEvaluationMap = jq(this).is(':checked');
   });
 
   jq('#showMiniMapCheck').prop('checked', state.showMiniMap);

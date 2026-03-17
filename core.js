@@ -72,7 +72,7 @@ export const DIRTY_STATE = {
   DELETE: 'DELETE'
 };
 
-export const random = new Math.seedrandom('123456789');
+export const random = new Math.seedrandom('123');
 
 export const state = {
   // World
@@ -104,6 +104,9 @@ export const state = {
   footprintPheromoneDiffusion: 0.0, // Amount to diffuse pheromones each tick
   footprintPheromoneDeposit: 0.2, // Initial deposit amount of pheromones when placed
 
+  evaluationMaps: [], // Array of colony evaluation maps keyed by tile hash -> { value, decayTime, maxDecayTime }
+  evaluationMapDecayTime: 1.5, // Seconds an evaluation remains visible after the most recent score
+
   // Counters
   spiderScore: 0,
   antDeaths: 0,
@@ -132,6 +135,7 @@ export const state = {
   showTrailPheromones: true,
   showAlarmPheromones: true,
   showFootprintPheromones: true,
+  showEvaluationMap: false,
 
   // Input
   keys: {},

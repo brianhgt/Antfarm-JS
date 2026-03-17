@@ -15,7 +15,7 @@ import * as Player from './entities/player.js';
 import { updateSpiders, updateSkulls } from './entities/enemy.js';
 import * as AI from './systems/ai.js';
 import * as AIPheromone from './systems/aiPheromone.js';
-import { spawnFood, spawnFoodClumps, updatePheromones } from './systems/physics.js';
+import { spawnFood, spawnFoodClumps, updateEvaluationMaps, updatePheromones } from './systems/physics.js';
 
 const jq = jQuery.noConflict();
 
@@ -53,6 +53,7 @@ function initWorld() {
       color: "black",
       pheromoneColors: { trail: '#f7a531', footprint: '#57c7ff', alarm: '#ff4d5a' },
       pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
+      evaluationMap: new Map(),
       nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null
     },
     {
@@ -62,6 +63,7 @@ function initWorld() {
       color: "red",
       pheromoneColors: { trail: '#8dff5a', footprint: '#b17cff', alarm: '#ff79c6' },
       pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
+      evaluationMap: new Map(),
       nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null
     }
   ];
@@ -69,6 +71,7 @@ function initWorld() {
   state.trailPheromoneMaps = state.colonies.map(col => col.pheromones.trail);
   state.alarmPheromoneMaps = state.colonies.map(col => col.pheromones.alarm);
   state.footprintPheromoneMaps = state.colonies.map(col => col.pheromones.footprint);
+  state.evaluationMaps = state.colonies.map(col => col.evaluationMap);
 
   // Spiders
   for (let i = 0; i < state.numSpiders; i++) {
@@ -122,7 +125,7 @@ function initWorld() {
 
     // Spawn initial egg(s)
     for (let i = 0; i <= 6; i++) {
-      const {x, y, z} = Util.getRandomNearbyEmptyTile(nx, ny, nz, 2);
+      const {x, y, z} = Util.getRandomNearbyEmptyTile(nx, ny, nz, 1, 2);
       col.eggs.set(Util.get3dHash(x, y, z), {
         x: x, y: y, z: z,
         type: ANT_TYPE.WORKER, timer: EGG_HATCH_TIME, carry: false, colIdx: colIdx
@@ -149,6 +152,7 @@ function update(delta) {
   });
 
   updatePheromones(delta);
+  updateEvaluationMaps(delta);
 
   updateSpiders(delta);
   updateSkulls();
@@ -217,7 +221,7 @@ function gameLoop(timestamp) {
     Render2D.drawBackground();
     Render2D.drawForeground();
     if (state.showMiniMap) Render2D.drawMiniMap();
-    if (state.showDebugPaths) Render2D.drawDebug();
+    if (state.showDebugPaths || state.showEvaluationMap) Render2D.drawDebug();
   }
 
   requestAnimationFrame(gameLoop);
