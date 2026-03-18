@@ -61,6 +61,13 @@ export const MIN_ZOOM = 0.2;
 export const MAX_ZOOM = 2.0;
 export const ZOOM_STEP = 0.1;
 
+// ─── Randomness ─────────────────────────────────────
+export const worldRandom = new Math.seedrandom('1234');
+
+export const random = new Math.seedrandom('123');
+
+// ───  ─────────────────────────────────────
+
 // ─── Mutable runtime state ─────────────────────────────────────
 // Every module imports `state` and reads/writes fields directly.
 // This single object replaces all window.* assignments and
@@ -71,8 +78,6 @@ export const DIRTY_STATE = {
   UPDATE: 'UPDATE',
   DELETE: 'DELETE'
 };
-
-export const random = new Math.seedrandom('123');
 
 export const state = {
   // World

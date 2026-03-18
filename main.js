@@ -37,8 +37,8 @@ function initWorld() {
 
   // Initial food on surface
   for (let i = 0; i < state.foodSpawnAmount; i++) {
-    const fx = Math.floor(Core.random() * WORLD_X_MAX);
-    const fy = Math.floor(Core.random() * WORLD_Y_MAX);
+    const fx = Math.floor(Core.worldRandom() * WORLD_X_MAX);
+    const fy = Math.floor(Core.worldRandom() * WORLD_Y_MAX);
     const fz = 0;
     state.foods.set(Util.get3dHash(fx, fy, fz), { x: fx, y: fy, z: fz, carry: false });
   }
@@ -76,8 +76,8 @@ function initWorld() {
   // Spiders
   for (let i = 0; i < state.numSpiders; i++) {
     state.spiders.push({
-      x: Math.floor(Core.random() * WORLD_X_MAX),
-      y: Math.floor(Core.random() * WORLD_Y_MAX),
+      x: Math.floor(Core.worldRandom() * WORLD_X_MAX),
+      y: Math.floor(Core.worldRandom() * WORLD_Y_MAX),
       z: 0,
       target: null, path: null, pathIndex: 0,
       timer: EGG_HATCH_TIME, cooldownTimer: SPIDER_COOLDOWN
@@ -86,9 +86,9 @@ function initWorld() {
 
   // Initialize nests
   state.colonies.forEach((col, colIdx) => {
-    const nx = 4 + Math.floor(Core.random() * (WORLD_X_MAX - 4));
+    const nx = 4 + Math.floor(Core.worldRandom() * (WORLD_X_MAX - 4));
     const ny = DEFAULT_NEST_Y;
-    const nz = 2 + 1 + Math.min(Math.floor(Core.random() * (WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
+    const nz = 2 + 1 + Math.min(Math.floor(Core.worldRandom() * (WORLD_Z_MAX - 4)), NEST_MAX_DEPTH);
 
     Util.setBlock(nx, ny, nz, TILE.NEST);
     Util.setBlock(nx, ny, nz + 1, TILE.NEST);
@@ -114,8 +114,8 @@ function initWorld() {
     let xShift = 0;
     for (let z = nz + 2; z > 0; z--) {
       Util.setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
-      if (Core.random() < 0.1) {
-        xShift += Math.ceil(Core.random() * 3 - 2);
+      if (Core.worldRandom() < 0.1) {
+        xShift += Math.ceil(Core.worldRandom() * 3 - 2);
         Util.setBlock(nx - 3 + xShift, ny, z, TILE.EMPTY);
       }
     }
