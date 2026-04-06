@@ -106,6 +106,7 @@ export function setupInput(inputCanvas) {
   // Click-to-move (player 1)
   inputCanvas.addEventListener('click', e => {
     if (state.renderMode === '3d') return;
+    if (!state.colonies[0] || !state.colonies[0].player) return;
     if (state.suppressNextClick) {
       state.suppressNextClick = false;
       return;

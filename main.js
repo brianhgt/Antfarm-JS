@@ -25,6 +25,17 @@ const SCENARIO_ID_SOLDIER_VS_SPIDER = 'soldier-vs-spider';
 const DEFAULT_SCENARIO_SEED = '1234';
 const DEFAULT_FOOD_PILE_RADIUS = 2;
 const DEFAULT_FOOD_PILE_SIZE = 14;
+const COLONY_COLOR_PALETTE = ['black', 'red', 'orange', 'blue', 'lime', 'magenta', 'cyan', 'yellow'];
+const COLONY_PHEROMONE_PALETTE = [
+  { trail: '#f7a531', footprint: '#57c7ff', alarm: '#ff4d5a' },
+  { trail: '#8dff5a', footprint: '#b17cff', alarm: '#ff79c6' },
+  { trail: '#ffd166', footprint: '#4cc9f0', alarm: '#ef476f' },
+  { trail: '#06d6a0', footprint: '#a9def9', alarm: '#e63946' },
+  { trail: '#f4a261', footprint: '#2a9d8f', alarm: '#e76f51' },
+  { trail: '#b8f2e6', footprint: '#aed9e0', alarm: '#ffa69e' },
+  { trail: '#f6bd60', footprint: '#84a59d', alarm: '#f28482' },
+  { trail: '#90be6d', footprint: '#577590', alarm: '#f94144' }
+];
 
 // ─── World initialization ──────────────────────────────────────
 
@@ -45,7 +56,7 @@ function normalizeScenarioConfig(input = {}) {
   return {
     scenarioId,
     seed,
-    colonyCount: clampInt(input.colonyCount, 1, 8, 1),
+    colonyCount: clampInt(input.colonyCount, 0, 8, 1),
     antsPerColony: clampInt(input.antsPerColony, 0, 500, scenarioId === SCENARIO_ID_SOLDIER_VS_SPIDER ? 0 : 2),
     soldiersPerColony: clampInt(input.soldiersPerColony, 0, 500, scenarioId === SCENARIO_ID_SOLDIER_VS_SPIDER ? 8 : 0),
     spiderCount: clampInt(input.spiderCount, 0, 20, defaultSpiderCount),
@@ -76,13 +87,16 @@ function resetWorldState() {
 }
 
 function createColony(index) {
+  const color = COLONY_COLOR_PALETTE[index % COLONY_COLOR_PALETTE.length];
+  const pheromoneColors = COLONY_PHEROMONE_PALETTE[index % COLONY_PHEROMONE_PALETTE.length];
+
   return {
     index,
     name: String.fromCharCode(65 + (index % 26)),
     aiType: 'pheromone',
     foragerRatio: 0.5,
-    color: 'black',
-    pheromoneColors: { trail: '#f7a531', footprint: '#57c7ff', alarm: '#ff4d5a' },
+    color,
+    pheromoneColors,
     pheromones: { trail: new Map(), alarm: new Map(), footprint: new Map() },
     evaluationMap: new Map(),
     nest: {}, eggs: new Map(), workers: [], soldiers: [], player: {}, score: 0, playerTarget: null

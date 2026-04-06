@@ -246,7 +246,7 @@ export function initControlPanel(jq, launchScenarioHandler) {
       scenarioId: jq('#scenarioSelect').val(),
       antsPerColony: clampInt(jq('#scenarioAntsInput').val(), 0, 500, 2),
       soldiersPerColony: clampInt(jq('#scenarioSoldiersInput').val(), 0, 500, 0),
-      colonyCount: clampInt(jq('#scenarioColoniesInput').val(), 1, 8, 1),
+      colonyCount: clampInt(jq('#scenarioColoniesInput').val(), 0, 8, 1),
       spiderCount: clampInt(jq('#scenarioSpidersInput').val(), 0, 20, 0),
       foodDistance: clampInt(jq('#scenarioFoodDistanceInput').val(), 4, 120, 60)
     };
