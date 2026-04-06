@@ -70,6 +70,10 @@ export function addNewAnt(colony, type, x, y, z) {
       x: x + 0.5, y: y + 0.5, z: z + 0.5,
       path: null, pathIndex: 0, colIdx: colony.index, type: ANT_TYPE.WORKER,
       role: workerRole,
+      turnBias: Core.random() < 0.5 ? -1 : 1,
+      wanderPhase: Core.random() * Math.PI * 2,
+      wanderRadius: 2,
+      recentTiles: [],
       rotation: {pitch: 0, yaw: 0, roll: 0}, hp: 100, attackCooldown: 0
     });
   }

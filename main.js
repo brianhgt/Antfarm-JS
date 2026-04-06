@@ -22,7 +22,37 @@ const jq = jQuery.noConflict();
 
 const SCENARIO_ID_CUSTOM = 'custom';
 const SCENARIO_ID_SOLDIER_VS_SPIDER = 'soldier-vs-spider';
+const SCENARIO_ID_ONLY_2 = 'only-2';
 const DEFAULT_SCENARIO_SEED = '1234';
+const SCENARIO_PRESETS = {
+  [SCENARIO_ID_CUSTOM]: {
+    scenarioId: SCENARIO_ID_CUSTOM,
+    seed: DEFAULT_SCENARIO_SEED,
+    colonyCount: 1,
+    antsPerColony: 2,
+    soldiersPerColony: 0,
+    spiderCount: 0,
+    foodDistance: 60
+  },
+  [SCENARIO_ID_SOLDIER_VS_SPIDER]: {
+    scenarioId: SCENARIO_ID_SOLDIER_VS_SPIDER,
+    seed: DEFAULT_SCENARIO_SEED,
+    colonyCount: 1,
+    antsPerColony: 0,
+    soldiersPerColony: 8,
+    spiderCount: 1,
+    foodDistance: 60
+  },
+  [SCENARIO_ID_ONLY_2]: {
+    scenarioId: SCENARIO_ID_ONLY_2,
+    seed: DEFAULT_SCENARIO_SEED,
+    colonyCount: 1,
+    antsPerColony: 2,
+    soldiersPerColony: 0,
+    spiderCount: 0,
+    foodDistance: 80
+  }
+};
 const DEFAULT_FOOD_PILE_RADIUS = 2;
 const DEFAULT_FOOD_PILE_SIZE = 14;
 const COLONY_COLOR_PALETTE = ['black', 'red', 'orange', 'blue', 'lime', 'magenta', 'cyan', 'yellow'];
@@ -45,22 +75,25 @@ function clampInt(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
-function normalizeScenarioConfig(input = {}) {
-  const scenarioId = input.scenarioId === SCENARIO_ID_SOLDIER_VS_SPIDER
-    ? SCENARIO_ID_SOLDIER_VS_SPIDER
-    : SCENARIO_ID_CUSTOM;
+function getScenarioPreset(scenarioId) {
+  return SCENARIO_PRESETS[scenarioId] || SCENARIO_PRESETS[SCENARIO_ID_CUSTOM];
+}
 
-  const defaultSpiderCount = scenarioId === SCENARIO_ID_SOLDIER_VS_SPIDER ? 1 : 0;
-  const seed = String(input.seed ?? '').trim() || state.currentSeed || DEFAULT_SCENARIO_SEED;
+function normalizeScenarioConfig(input = {}) {
+  const scenarioId = Object.prototype.hasOwnProperty.call(SCENARIO_PRESETS, input.scenarioId)
+    ? input.scenarioId
+    : SCENARIO_ID_CUSTOM;
+  const basePreset = getScenarioPreset(scenarioId);
+  const seed = String(input.seed ?? '').trim() || state.currentSeed || basePreset.seed;
 
   return {
     scenarioId,
     seed,
-    colonyCount: clampInt(input.colonyCount, 0, 8, 1),
-    antsPerColony: clampInt(input.antsPerColony, 0, 500, scenarioId === SCENARIO_ID_SOLDIER_VS_SPIDER ? 0 : 2),
-    soldiersPerColony: clampInt(input.soldiersPerColony, 0, 500, scenarioId === SCENARIO_ID_SOLDIER_VS_SPIDER ? 8 : 0),
-    spiderCount: clampInt(input.spiderCount, 0, 20, defaultSpiderCount),
-    foodDistance: clampInt(input.foodDistance, 4, Math.min(WORLD_X_MAX, WORLD_Y_MAX) - 4, 60)
+    colonyCount: clampInt(input.colonyCount, 0, 8, basePreset.colonyCount),
+    antsPerColony: clampInt(input.antsPerColony, 0, 500, basePreset.antsPerColony),
+    soldiersPerColony: clampInt(input.soldiersPerColony, 0, 500, basePreset.soldiersPerColony),
+    spiderCount: clampInt(input.spiderCount, 0, 20, basePreset.spiderCount),
+    foodDistance: clampInt(input.foodDistance, 4, Math.min(WORLD_X_MAX, WORLD_Y_MAX) - 4, basePreset.foodDistance)
   };
 }
 
@@ -246,15 +279,8 @@ export function launchScenario(configInput = {}) {
 }
 
 function initWorld() {
-  launchScenario({
-    scenarioId: SCENARIO_ID_CUSTOM,
-    seed: state.currentSeed || DEFAULT_SCENARIO_SEED,
-    antsPerColony: 7,
-    soldiersPerColony: 0,
-    colonyCount: 2,
-    spiderCount: state.numSpiders,
-    foodDistance: 40
-  });
+  const startupPreset = getScenarioPreset(state.selectedScenarioId || SCENARIO_ID_CUSTOM);
+  launchScenario(startupPreset);
 }
 
 // ─── Update ────────────────────────────────────────────────────

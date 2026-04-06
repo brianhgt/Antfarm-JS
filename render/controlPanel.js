@@ -237,6 +237,17 @@ export function initControlPanel(jq, launchScenarioHandler) {
       jq('#scenarioSpidersInput').val(state.scenarioSpiders);
       jq('#scenarioSoldiersInput').val(state.scenarioSoldiersPerColony);
       jq('#scenarioAntsInput').val(state.scenarioAntsPerColony);
+    } else if (selected === 'only-2') {
+      state.scenarioAntsPerColony = 2;
+      state.scenarioSoldiersPerColony = 0;
+      state.scenarioColonies = 1;
+      state.scenarioSpiders = 0;
+      state.scenarioFoodDistance = 80;
+      jq('#scenarioAntsInput').val(state.scenarioAntsPerColony);
+      jq('#scenarioSoldiersInput').val(state.scenarioSoldiersPerColony);
+      jq('#scenarioColoniesInput').val(state.scenarioColonies);
+      jq('#scenarioSpidersInput').val(state.scenarioSpiders);
+      jq('#scenarioFoodDistanceInput').val(state.scenarioFoodDistance);
     }
   });
 

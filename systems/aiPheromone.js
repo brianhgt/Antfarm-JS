@@ -4,6 +4,11 @@ import * as Core from '../core.js';
 import * as Util from '../util/util.js';
 import * as Physics from './physics.js';
 
+const RECENT_TILE_MEMORY = 12;
+const SPIRAL_STEP_DEGREES = 28;
+const SPIRAL_RADIUS_MIN = 2;
+const SPIRAL_RADIUS_MAX = 12;
+
 /*
   * Pheromone trail-following worker AI.
   *
@@ -70,6 +75,97 @@ function ensureWorkerRole(ant, col) {
   //this isn't correct, should be based on environment and colony state, not random chance
   if (ant.role) return;
   ant.role = Core.random() < (col.foragerRatio ?? 0.25) ? 'forager' : 'worker';
+}
+
+function ensureNavigationPersonality(ant) {
+  if (ant.turnBias !== -1 && ant.turnBias !== 1) {
+    ant.turnBias = Core.random() < 0.5 ? -1 : 1;
+  }
+  if (typeof ant.wanderPhase !== 'number') {
+    ant.wanderPhase = Core.random() * Math.PI * 2;
+  }
+  if (typeof ant.wanderRadius !== 'number') {
+    ant.wanderRadius = SPIRAL_RADIUS_MIN;
+  }
+  if (!Array.isArray(ant.recentTiles)) {
+    ant.recentTiles = [];
+  }
+}
+
+function rememberCurrentTile(ant, x, y, z) {
+  ensureNavigationPersonality(ant);
+  const tileKey = Util.get3dHash(x, y, z);
+  if (ant.recentTiles[ant.recentTiles.length - 1] === tileKey) return;
+
+  ant.recentTiles.push(tileKey);
+  if (ant.recentTiles.length > RECENT_TILE_MEMORY) {
+    ant.recentTiles.shift();
+  }
+}
+
+function getRecentTilePenalty(ant, candidate, footprintStrength = 0) {
+  if (ant.role === 'forager') {
+    return Math.max(0, footprintStrength);
+  }
+
+  if (!candidate || !Array.isArray(ant.recentTiles) || ant.recentTiles.length === 0) return 0;
+
+  const key = Util.get3dHash(candidate.x, candidate.y, candidate.z);
+  const index = ant.recentTiles.lastIndexOf(key);
+  if (index < 0) return 0;
+
+  const recency = (index + 1) / ant.recentTiles.length;
+  return 1.8 * recency;
+}
+
+function getMomentumBias(ant, candidate) {
+  if (!candidate) return 0;
+
+  const toCandidate = Util.getDirectionAsVector(ant.x, ant.y, ant.z, candidate.x, candidate.y, candidate.z);
+  let forward = null;
+
+  if (ant.direction && typeof ant.direction.yaw === 'number') {
+    const yawRad = ant.direction.yaw * Math.PI / 180;
+    forward = { x: Math.cos(yawRad), y: Math.sin(yawRad) };
+  } else if (ant.direction && typeof ant.direction.x === 'number' && typeof ant.direction.y === 'number') {
+    const len = Math.hypot(ant.direction.x, ant.direction.y);
+    if (len > 1e-6) {
+      forward = { x: ant.direction.x / len, y: ant.direction.y / len };
+    }
+  }
+
+  if (!forward) return 0;
+
+  const forwardScore = (forward.x * toCandidate.x + forward.y * toCandidate.y) * 0.35;
+  const lateral = (forward.x * toCandidate.y) - (forward.y * toCandidate.x);
+  const turnScore = lateral * (ant.turnBias ?? 1) * 0.24;
+  return forwardScore + turnScore;
+}
+
+function chooseSpiralTarget(ant, minRadius = SPIRAL_RADIUS_MIN, maxRadius = SPIRAL_RADIUS_MAX) {
+  ensureNavigationPersonality(ant);
+
+  const minR = Math.max(1, minRadius);
+  const maxR = Math.max(minR, maxRadius);
+  ant.wanderRadius = Math.max(minR, Math.min(maxR, ant.wanderRadius ?? minR));
+
+  for (let i = 0; i < 8; i++) {
+    ant.wanderPhase += (SPIRAL_STEP_DEGREES * Math.PI / 180) * ant.turnBias;
+    const x = Math.round(ant.x + Math.cos(ant.wanderPhase) * ant.wanderRadius);
+    const y = Math.round(ant.y + Math.sin(ant.wanderPhase) * ant.wanderRadius);
+    const z = Math.floor(ant.z);
+
+    if (Util.isValidBlock(x, y, z) && Util.isTileType(Util.getBlockAt(x, y, z), Core.TILE.EMPTY)) {
+      ant.wanderRadius += 0.75;
+      if (ant.wanderRadius > maxR) ant.wanderRadius = minR;
+      return { x, y, z };
+    }
+
+    ant.wanderRadius += 0.5;
+    if (ant.wanderRadius > maxR) ant.wanderRadius = minR;
+  }
+
+  return Util.getRandomNearbyEmptyTile(Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), minR, maxR);
 }
 
 function setPathToTarget(ant, target, tolerance = Util.PATH_TOLERANCE) {
@@ -203,8 +299,9 @@ function getLocalGradientCandidate(col, ant, maxDist = 3) {
     const alarm = Math.min(getPheromoneValue(alarmMap, x, y, z), 4);
     const crowding = getWorkerCrowding(col, ant, x + 0.5, y + 0.5, z + 0.5);
     const surfaceBias = (col.nest && typeof col.nest.z === 'number') ? (col.nest.z - z) : 0;
+    const nestDist = Util.getDistance(col.nest.x, col.nest.y, col.nest.z, x, y, z);
 
-    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, 0);
+    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, 0, nestDist);
     recordCandidateEvaluation(col, { x, y, z }, score);
 
     if (score > bestScore) {
@@ -218,6 +315,7 @@ function getLocalGradientCandidate(col, ant, maxDist = 3) {
 
 function chooseRecruitmentTarget(col, ant) {
   if (ant.role !== 'worker') return null;
+  ensureNavigationPersonality(ant);
 
   const currentX = Math.floor(ant.x);
   const currentY = Math.floor(ant.y);
@@ -257,7 +355,9 @@ function chooseRecruitmentTarget(col, ant) {
     const candidateVector = Util.getDirectionAsVector(ant.x, ant.y, ant.z, candidate.x, candidate.y, candidate.z);
     const alignmentWithNest =  Math.min(Math.abs(Util.dotProduct(candidateVector, nestVector)), 1.0);
 
-    const score = calculateScore(ant, footprint, trail, alarm, crowding, 0, alignmentWithNest);
+    const score = calculateScore(ant, footprint, trail, alarm, crowding, 0, alignmentWithNest, nestDist)
+      + getMomentumBias(ant, candidate)
+      - getRecentTilePenalty(ant, candidate, footprint);
     recordCandidateEvaluation(col, candidate, score);
 
     if (score > bestScore) {
@@ -269,7 +369,7 @@ function chooseRecruitmentTarget(col, ant) {
   return bestTarget;
 }
 
-function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest) {
+function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest, nestDist) {
   let score;
     if (ant.carrying === Core.TILE.FOOD) {
       score = (footprint * 0.8)
@@ -280,9 +380,10 @@ function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, ali
         + (alignmentWithNest * 6.0);
     } else if (ant.role === 'forager') {
       score = (trail * 4.5)
-        - (footprint * 0.7)
+        - (footprint * 2.7)
         - (alarm * 3.5)
-        - (crowding * 1.4)
+        + (nestDist * 5.5)
+        - (crowding * 2.4)
         + (surfaceBias * 0.9)
         - (alignmentWithNest * 1.0);;
     } else {
@@ -296,8 +397,25 @@ function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, ali
     }
   return score;
 }
+/*
+function getForagerOutboundBias(col, ant, candidate, footprint, trail) {
+  if (!col?.nest || ant.carrying === Core.TILE.FOOD) return 0;
+
+  const currentDist = Util.getDistance(col.nest.x, col.nest.y, col.nest.z, ant.x, ant.y, ant.z);
+  const candidateDist = Util.getDistance(col.nest.x, col.nest.y, col.nest.z, candidate.x, candidate.y, candidate.z);
+  const outwardGain = candidateDist - currentDist;
+
+  // Strongly discourage loitering in dense pheromone near the nest entrance.
+  const nearNestPenalty = Math.max(0, 6 - candidateDist) * 0.9;
+  const footprintNestPenalty = candidateDist < 8 ? footprint * 1.1 : 0;
+  const trailNestPenalty = candidateDist < 6 ? Math.max(0, trail - 0.5) * 0.8 : 0;
+
+  return (outwardGain * 1.1) - nearNestPenalty - footprintNestPenalty - trailNestPenalty;
+}
+*/
 
 function chooseScoredTarget(col, ant) {
+  ensureNavigationPersonality(ant);
   const currentX = Math.floor(ant.x);
   const currentY = Math.floor(ant.y);
   const currentZ = Math.floor(ant.z);
@@ -337,7 +455,13 @@ function chooseScoredTarget(col, ant) {
     const candidateVector = Util.getDirectionAsVector(ant.x, ant.y, ant.z, candidate.x, candidate.y, candidate.z);
     const alignmentWithNest = Util.dotProduct(candidateVector, nestVector);
 
-    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest);
+    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest, nestDist)
+      + getMomentumBias(ant, candidate)
+      - getRecentTilePenalty(ant, candidate, footprint);
+
+    if (ant.role === 'forager' && ant.carrying !== Core.TILE.FOOD) {
+      score += getForagerOutboundBias(col, ant, candidate, footprint, trail);
+    }
     recordCandidateEvaluation(col, candidate, score);
 
     if (score > bestScore) {
@@ -350,13 +474,9 @@ function chooseScoredTarget(col, ant) {
 }
 
 function chooseIdleTarget(col, ant) {
-  
-  // if (ant.carrying === Core.TILE.FOOD) {
-  //   //TODO Drop it at nest, nest targeting is done with recruitment
-  // }
+  ensureNavigationPersonality(ant);
 
-  const recruitmentTarget = chooseRecruitmentTarget(col, ant);
-  if (recruitmentTarget && setPathToTarget(ant, recruitmentTarget, Core.PATH_TOLERANCE * 1.3)) {
+  if (ant.carrying === Core.TILE.FOOD && setPathToTarget(ant, col.nest, Core.PATH_TOLERANCE)) {
     return true;
   }
 
@@ -367,6 +487,11 @@ function chooseIdleTarget(col, ant) {
     }
   }
 
+  const recruitmentTarget = chooseRecruitmentTarget(col, ant);
+  if (recruitmentTarget && setPathToTarget(ant, recruitmentTarget, Core.PATH_TOLERANCE * 1.3)) {
+    return true;
+  }
+
   //TODO: ants don't know distance to nest, this should be removed
   /*
   const nestDist = getNestDistance(col, ant.x, ant.y, ant.z);
@@ -375,9 +500,11 @@ function chooseIdleTarget(col, ant) {
   }
   */
 
-  const target = chooseScoredTarget(col, ant) || Util.getRandomNearbyEmptyTile(
-    Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), 5, ant.role === 'forager' ? 10 : 6
-  );
+  const target = chooseScoredTarget(col, ant)
+    || chooseSpiralTarget(ant, ant.role === 'forager' ? 3 : 2, ant.role === 'forager' ? 12 : 9)
+    || Util.getRandomNearbyEmptyTile(
+      Math.floor(ant.x), Math.floor(ant.y), Math.floor(ant.z), 5, ant.role === 'forager' ? 10 : 6
+    );
   return setPathToTarget(ant, target, Core.PATH_TOLERANCE * (ant.role === 'forager' ? 1.4 : 2.0));
 }
 
@@ -419,10 +546,12 @@ function handleFoodInteractions(col, ant, antX, antY, antZ) {
 export function updateWorkers(col, colonyIndex, delta) {
   col.workers.forEach(ant => {
     ensureWorkerRole(ant, col);
+    ensureNavigationPersonality(ant);
 
     const antX = Math.floor(ant.x);
     const antY = Math.floor(ant.y);
     const antZ = Math.floor(ant.z);
+    rememberCurrentTile(ant, antX, antY, antZ);
 
     if(Physics.isThreatened(colonyIndex, antX, antY, antZ)) {
       Physics.depositPheromone('alarm', colonyIndex, antX, antY, antZ, 1);
@@ -435,6 +564,13 @@ export function updateWorkers(col, colonyIndex, delta) {
         || ant.pathIndex === null) {
       ant.direction = null;
       chooseIdleTarget(col, ant);
+    }
+
+    if (!ant.path || ant.path[ant.pathIndex] === undefined || ant.path[ant.pathIndex] === null) {
+      updateWorkerPheromoneTrail(ant, colonyIndex);
+      updateAlarmPheromone(ant, colonyIndex);
+      handleFoodInteractions(col, ant, antX, antY, antZ);
+      return;
     }
 
     let nextX = ant.path[ant.pathIndex].x;
