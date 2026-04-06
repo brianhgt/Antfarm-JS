@@ -62,9 +62,17 @@ export const MAX_ZOOM = 2.0;
 export const ZOOM_STEP = 0.1;
 
 // ─── Randomness ─────────────────────────────────────
-export const worldRandom = new Math.seedrandom('1234');
+export let worldRandom = new Math.seedrandom('1234');
 
-export const random = new Math.seedrandom('123');
+export let random = new Math.seedrandom('123');
+
+export function reseedRandomGenerators(seedInput) {
+  const normalizedSeed = String(seedInput ?? '').trim() || '1234';
+  worldRandom = new Math.seedrandom(normalizedSeed);
+  random = new Math.seedrandom(`${normalizedSeed}-behavior`);
+  state.currentSeed = normalizedSeed;
+  return normalizedSeed;
+}
 
 // ───  ─────────────────────────────────────
 
@@ -119,6 +127,7 @@ export const state = {
   // Config (adjustable via control panel)
   maxEntities: 2000,
   numSpiders: 1,
+  currentSeed: '1234',
   foodSpawnAmount: 0,
   foodSpawnInterval: FOOD_SPAWN_INTERVAL,
   foodSpawnTimer: FOOD_SPAWN_INTERVAL,
@@ -127,6 +136,14 @@ export const state = {
   foodClumpSpawnTimer: 0,
   foodClumpSize: FOOD_GROUP_SIZE,
   foodClumpRadius: 3,
+
+  // Scenarios
+  selectedScenarioId: 'custom',
+  scenarioAntsPerColony: 2,
+  scenarioSoldiersPerColony: 0,
+  scenarioColonies: 1,
+  scenarioSpiders: 0,
+  scenarioFoodDistance: 60,
 
   // View / Camera
   currentView: 'nest',    // 'nest' | 'overworld'
@@ -141,6 +158,7 @@ export const state = {
   showAlarmPheromones: true,
   showFootprintPheromones: true,
   showEvaluationMap: false,
+  isPaused: false,
 
   // Input
   keys: {},

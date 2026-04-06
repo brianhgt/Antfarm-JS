@@ -112,7 +112,8 @@ h3 {
   background: #444;
 }
 
-#optionsPanel {
+#optionsPanel,
+#scenariosPanel {
   position: relative;
   background: #222;
   border: 2px solid #555;
@@ -129,12 +130,14 @@ h3 {
   min-height: 0;
 }
 
-#optionsPanel.expanded {
+#optionsPanel.expanded,
+#scenariosPanel.expanded {
   display: flex;
   width: 100%;
 }
 
-#panelHeader {
+#panelHeader,
+#scenarioHeader {
   background: #444;
   padding: 0px 0px;
   cursor: default;
@@ -146,7 +149,8 @@ h3 {
   white-space: nowrap;
 }
 
-#panelHeader:hover {
+#panelHeader:hover,
+#scenarioHeader:hover {
   background: #444;
 }
 
@@ -156,7 +160,8 @@ h3 {
   font-size: 14px;
 }
 
-#panelContent {
+#panelContent,
+#scenarioContent {
   padding: 0px 0px;
   display: none;
   flex-direction: column;
@@ -166,12 +171,17 @@ h3 {
   min-height: 0;
 }
 
-#optionsPanel.expanded #panelContent {
+#optionsPanel.expanded #panelContent,
+#scenariosPanel.expanded #scenarioContent {
   display: flex;
   flex: 1;
 }
 
 #optionsPanel.expanded #panelContent {
+  display: flex;
+}
+
+#scenariosPanel.expanded #scenarioContent {
   display: flex;
 }
 
@@ -222,7 +232,9 @@ h3 {
 }
 
 .option-group input[type="range"],
-.option-group input[type="number"] {
+.option-group input[type="number"],
+.option-group input[type="text"],
+.option-group select {
   background: #333;
   color: #fff;
   border: 1px solid #555;

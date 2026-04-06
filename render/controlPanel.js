@@ -6,6 +6,7 @@ import {
   EGG_HATCH_TIME, SPIDER_COOLDOWN,
   state
 } from '../core.js';
+import * as Core from '../core.js';
 import { resizeCanvasesToViewport, clearDebug, drawMiniMap, switchTo2D } from './render2D.js';
 import { clampCameraToViewBounds } from './controls.js';
 import { dispose3D, switchTo3D } from './render3D.js';
@@ -33,7 +34,7 @@ function bindToggleButton(jq, selector, stateKey) {
   sync();
 }
 
-export function initControlPanel(jq) {
+export function initControlPanel(jq, launchScenarioHandler) {
   // Stats DOM elements
   els = {
     fps:        document.getElementById('fpsStat'),
@@ -59,17 +60,43 @@ export function initControlPanel(jq) {
 
   // Panel expand / collapse
   let panelExpanded = false;
+  let scenariosExpanded = false;
   const optionsPanel = jq('#optionsPanel');
+  const scenariosPanel = jq('#scenariosPanel');
   const optionsToggleButton = jq('#btn2');
+  const scenariosToggleButton = jq('#btnScenario');
+
+  const collapseScenarioPanel = () => {
+    scenariosExpanded = false;
+    scenariosPanel.removeClass('expanded');
+    scenariosToggleButton.text('📊');
+  };
+
+  const collapseOptionsPanel = () => {
+    panelExpanded = false;
+    optionsPanel.removeClass('expanded');
+    optionsToggleButton.text('\u2699\uFE0F');
+  };
 
   optionsToggleButton.click(function () {
     panelExpanded = !panelExpanded;
     if (panelExpanded) {
+      collapseScenarioPanel();
       optionsPanel.addClass('expanded');
       optionsToggleButton.text('\u2716');   // ✖
     } else {
-      optionsPanel.removeClass('expanded');
-      optionsToggleButton.text('\u2699\uFE0F'); // ⚙️
+      collapseOptionsPanel();
+    }
+  });
+
+  scenariosToggleButton.click(function () {
+    scenariosExpanded = !scenariosExpanded;
+    if (scenariosExpanded) {
+      collapseOptionsPanel();
+      scenariosPanel.addClass('expanded');
+      scenariosToggleButton.text('\u2716');
+    } else {
+      collapseScenarioPanel();
     }
   });
 
@@ -178,6 +205,80 @@ export function initControlPanel(jq) {
     const v = parseInt(jq(this).val());
     state.maxPhysicsStepsPerFrame = v;
     jq('#maxStepsValue').text(v);
+  });
+
+  // Scenario controls
+  const clampInt = (value, min, max, fallback) => {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.max(min, Math.min(max, parsed));
+  };
+
+  const syncScenarioInputs = () => {
+    jq('#scenarioSeedInput').val(state.currentSeed || '');
+    jq('#scenarioSelect').val(state.selectedScenarioId || 'custom');
+    jq('#scenarioAntsInput').val(state.scenarioAntsPerColony ?? 2);
+    jq('#scenarioSoldiersInput').val(state.scenarioSoldiersPerColony ?? 0);
+    jq('#scenarioColoniesInput').val(state.scenarioColonies ?? 1);
+    jq('#scenarioSpidersInput').val(state.scenarioSpiders ?? 0);
+    jq('#scenarioFoodDistanceInput').val(state.scenarioFoodDistance ?? 60);
+  };
+
+  syncScenarioInputs();
+
+  jq('#scenarioSelect').on('change', function () {
+    const selected = jq(this).val();
+    state.selectedScenarioId = selected;
+
+    if (selected === 'soldier-vs-spider') {
+      if (state.scenarioSpiders < 1) state.scenarioSpiders = 1;
+      if (state.scenarioSoldiersPerColony < 1) state.scenarioSoldiersPerColony = 8;
+      state.scenarioAntsPerColony = 0;
+      jq('#scenarioSpidersInput').val(state.scenarioSpiders);
+      jq('#scenarioSoldiersInput').val(state.scenarioSoldiersPerColony);
+      jq('#scenarioAntsInput').val(state.scenarioAntsPerColony);
+    }
+  });
+
+  jq('#launchScenarioBtn').on('click', function () {
+    const scenarioConfig = {
+      seed: (jq('#scenarioSeedInput').val() || '').trim() || state.currentSeed,
+      scenarioId: jq('#scenarioSelect').val(),
+      antsPerColony: clampInt(jq('#scenarioAntsInput').val(), 0, 500, 2),
+      soldiersPerColony: clampInt(jq('#scenarioSoldiersInput').val(), 0, 500, 0),
+      colonyCount: clampInt(jq('#scenarioColoniesInput').val(), 1, 8, 1),
+      spiderCount: clampInt(jq('#scenarioSpidersInput').val(), 0, 20, 0),
+      foodDistance: clampInt(jq('#scenarioFoodDistanceInput').val(), 4, 120, 60)
+    };
+
+    if (scenarioConfig.scenarioId === 'soldier-vs-spider' && scenarioConfig.spiderCount < 1) {
+      scenarioConfig.spiderCount = 1;
+    }
+
+    state.selectedScenarioId = scenarioConfig.scenarioId;
+    state.scenarioAntsPerColony = scenarioConfig.antsPerColony;
+    state.scenarioSoldiersPerColony = scenarioConfig.soldiersPerColony;
+    state.scenarioColonies = scenarioConfig.colonyCount;
+    state.scenarioSpiders = scenarioConfig.spiderCount;
+    state.scenarioFoodDistance = scenarioConfig.foodDistance;
+
+    if (typeof launchScenarioHandler === 'function') {
+      launchScenarioHandler(scenarioConfig);
+    }
+
+    // Always show pheromone trails after scenario launches.
+    state.showTrailPheromones = true;
+    state.showFootprintPheromones = true;
+    state.showAlarmPheromones = true;
+    jq('#trailPheromoneBtn').addClass('active');
+    jq('#footprintPheromoneBtn').addClass('active');
+    jq('#alarmPheromoneBtn').addClass('active');
+
+    // Simulation currently runs continuously; keep hook for future pause support.
+    state.isPaused = false;
+    jq('#numSpidersValue').text(state.numSpiders);
+    jq('#numSpidersSlider').val(state.numSpiders);
+    jq('#scenarioSeedInput').val(state.currentSeed);
   });
 
   // View toggle
