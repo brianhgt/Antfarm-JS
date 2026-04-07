@@ -201,10 +201,11 @@ function getLocalGradientCandidate(col, ant, maxDist = 3) {
     const footprint = Math.min(getPheromoneValue(footprintMap, x, y, z), 2);
     const trail = Math.min(getPheromoneValue(trailMap, x, y, z), 6);
     const alarm = Math.min(getPheromoneValue(alarmMap, x, y, z), 4);
+    const nestDist = Util.getDistance(col.nest.x, col.nest.y, col.nest.z, x, y, z);
     const crowding = getWorkerCrowding(col, ant, x + 0.5, y + 0.5, z + 0.5);
     const surfaceBias = (col.nest && typeof col.nest.z === 'number') ? (col.nest.z - z) : 0;
 
-    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, 0);
+    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, 0, nestDist);
     recordCandidateEvaluation(col, { x, y, z }, score);
 
     if (score > bestScore) {
@@ -257,7 +258,7 @@ function chooseRecruitmentTarget(col, ant) {
     const candidateVector = Util.getDirectionAsVector(ant.x, ant.y, ant.z, candidate.x, candidate.y, candidate.z);
     const alignmentWithNest =  Math.min(Math.abs(Util.dotProduct(candidateVector, nestVector)), 1.0);
 
-    const score = calculateScore(ant, footprint, trail, alarm, crowding, 0, alignmentWithNest);
+    const score = calculateScore(ant, footprint, trail, alarm, crowding, 0, alignmentWithNest, nestDist);
     recordCandidateEvaluation(col, candidate, score);
 
     if (score > bestScore) {
@@ -269,7 +270,8 @@ function chooseRecruitmentTarget(col, ant) {
   return bestTarget;
 }
 
-function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest) {
+function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest,
+    nestDist) {
   let score;
     if (ant.carrying === Core.TILE.FOOD) {
       score = (footprint * 0.8)
@@ -280,7 +282,8 @@ function calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, ali
         + (alignmentWithNest * 6.0);
     } else if (ant.role === 'forager') {
       score = (trail * 4.5)
-        - (footprint * 0.7)
+        - (footprint * 3.0)
+        + (nestDist * 0.5)
         - (alarm * 3.5)
         - (crowding * 1.4)
         + (surfaceBias * 0.9)
@@ -337,7 +340,7 @@ function chooseScoredTarget(col, ant) {
     const candidateVector = Util.getDirectionAsVector(ant.x, ant.y, ant.z, candidate.x, candidate.y, candidate.z);
     const alignmentWithNest = Util.dotProduct(candidateVector, nestVector);
 
-    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest);
+    let score = calculateScore(ant, footprint, trail, alarm, crowding, surfaceBias, alignmentWithNest, nestDist);
     recordCandidateEvaluation(col, candidate, score);
 
     if (score > bestScore) {
