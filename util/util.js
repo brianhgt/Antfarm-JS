@@ -297,6 +297,12 @@ export function blendDirections(a, b, amount = 0.5) {
   });
 }
 
+export function normalizeDirection(direction) {
+  const len = Math.sqrt(direction.x * direction.x + direction.y * direction.y + (direction.z ?? 0) * (direction.z ?? 0));
+  if (len === 0) return { x: 0, y: 0, z: 0 };
+  return { x: direction.x / len, y: direction.y / len, z: (direction.z ?? 0) / len };
+}
+
 export function getRandomTurnDirection(baseDirection, maxAngleDeg = 20) {
   const randomAngle = ((Core.random() * 2) - 1) * maxAngleDeg;
   return rotateDirection2D(baseDirection, randomAngle);

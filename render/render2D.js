@@ -38,6 +38,42 @@ function isTileVisibleInView(x, y, z, currentView, focusY, visible, cullBuffer =
     x <= Math.ceil(Core.state.camera1Y + visible.height + cullBuffer);
 }
 
+function getEntityDirectionVector(entity) {
+  if (entity?.direction) {
+    if (typeof entity.direction.yaw === 'number') {
+      const yawRad = entity.direction.yaw * Math.PI / 180;
+      const pitchRad = (entity.direction.pitch ?? 0) * Math.PI / 180;
+      const planar = Math.cos(pitchRad);
+      return {
+        x: Math.cos(yawRad) * planar,
+        y: Math.sin(yawRad) * planar,
+        z: Math.sin(pitchRad)
+      };
+    }
+
+    if (typeof entity.direction.x === 'number' && typeof entity.direction.y === 'number') {
+      const dx = entity.direction.x;
+      const dy = entity.direction.y;
+      const dz = entity.direction.z ?? 0;
+      const len = Math.hypot(dx, dy, dz);
+      if (len > 1e-6) {
+        return { x: dx / len, y: dy / len, z: dz / len };
+      }
+    }
+  }
+
+  if (entity?.path && entity.pathIndex != null && entity.path[entity.pathIndex]) {
+    const next = entity.path[entity.pathIndex];
+    return Util.getDirectionAsVector(entity.x, entity.y, entity.z, next.x + 0.5, next.y + 0.5, next.z + 0.5);
+  }
+
+  if (entity?.target) {
+    return Util.getDirectionAsVector(entity.x, entity.y, entity.z, entity.target.x, entity.target.y, entity.target.z);
+  }
+
+  return null;
+}
+
 let surfaceTerrainCanvas = null;
 let surfaceTerrainCtx = null;
 let nestTerrainCanvas = null;
@@ -319,6 +355,28 @@ export function drawForeground() {
     });
   };
 
+  const queueDirectionLine = (entity, wx, wy, wz, lineLength, layerBias, depthOffset = 0, alpha = 1) => {
+    const direction = getEntityDirectionVector(entity);
+    if (!direction) return;
+
+    const p = worldToScreenView(wx, wy, wz, Core.state.currentView);
+    const screenDx = isNest ? direction.x : direction.y;
+    const screenDy = isNest ? direction.z : direction.x;
+    const len = Math.hypot(screenDx, screenDy);
+    if (len <= 1e-6) return;
+
+    const endX = p.sx + (screenDx / len) * lineLength;
+    const endY = p.sy + (screenDy / len) * lineLength;
+    queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1.5, Core.TILE_SIZE * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(p.sx, p.sy);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    });
+  };
+
   const queueText = (wx, wy, wz, text, color, layerBias, depthOffset = 0, alpha = 1) => {
     const p = worldToScreenView(wx, wy, wz, Core.state.currentView);
     queue(wx, wy, wz, layerBias, depthOffset, alpha, () => {
@@ -378,6 +436,7 @@ export function drawForeground() {
 
     if (entityVisible(col.player.y)) {
       queueCircle(col.player.x, col.player.y, col.player.z, col.color, Core.TILE_SIZE / 2 - 2, 50, 0.45);
+      queueDirectionLine(col.player, col.player.x, col.player.y, col.player.z, Core.TILE_SIZE * 0.55, 55, 0.45);
       if (col.player.carrying) {
         queueRect(col.player.x, col.player.y, col.player.z,
           Util.isTileType(col.player.carrying, Core.TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 80, 0.45);
@@ -387,6 +446,7 @@ export function drawForeground() {
     col.workers.forEach(w => {
       if (!entityVisible(w.y)) return;
       queueCircle(w.x, w.y, w.z, col.color, Core.TILE_SIZE / 2 - 3, 40, 0.45);
+      queueDirectionLine(w, w.x, w.y, w.z, Core.TILE_SIZE * 0.5, 48, 0.45);
       if (w.carrying) {
         queueRect(w.x, w.y, w.z,
           Util.isTileType(w.carrying, Core.TILE.FOOD) ? "green" : "white", 4, 4, 6, 6, 70, 0.45);
@@ -396,6 +456,7 @@ export function drawForeground() {
     col.soldiers.forEach(ant => {
       if (entityVisible(ant.y)) {
         queueCircle(ant.x, ant.y, ant.z, col.color, Core.TILE_SIZE * 0.45, 45, 0.45);
+        queueDirectionLine(ant, ant.x, ant.y, ant.z, Core.TILE_SIZE * 0.65, 52, 0.45);
       }
     });
 

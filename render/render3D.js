@@ -20,6 +20,7 @@ let lastTerrainRebuildMs = 0;
 
 let blockGeometry = null;
 let sphereGeometry = null;
+let directionLineMaterial = null;
 
 let dirtMat = null;
 let rockMat = null;
@@ -147,22 +148,97 @@ function getEntityMaterial(color) {
   return material;
 }
 
-function upsertEntitySphere(id, x, y, z, color, radius) {
+function getEntityDirectionVector(entity) {
+  if (entity?.direction) {
+    if (typeof entity.direction.yaw === 'number') {
+      const yawRad = entity.direction.yaw * Math.PI / 180;
+      const pitchRad = (entity.direction.pitch ?? 0) * Math.PI / 180;
+      const planar = Math.cos(pitchRad);
+      return {
+        x: Math.cos(yawRad) * planar,
+        y: Math.sin(yawRad) * planar,
+        z: Math.sin(pitchRad)
+      };
+    }
+
+    if (typeof entity.direction.x === 'number' && typeof entity.direction.y === 'number') {
+      const dx = entity.direction.x;
+      const dy = entity.direction.y;
+      const dz = entity.direction.z ?? 0;
+      const len = Math.hypot(dx, dy, dz);
+      if (len > 1e-6) {
+        return { x: dx / len, y: dy / len, z: dz / len };
+      }
+    }
+  }
+
+  if (entity?.path && entity.pathIndex != null && entity.path[entity.pathIndex]) {
+    const next = entity.path[entity.pathIndex];
+    return Util.getDirectionAsVector(entity.x, entity.y, entity.z, next.x + 0.5, next.y + 0.5, next.z + 0.5);
+  }
+
+  if (entity?.target) {
+    return Util.getDirectionAsVector(entity.x, entity.y, entity.z, entity.target.x, entity.target.y, entity.target.z);
+  }
+
+  return null;
+}
+
+function updateDirectionLine(line, direction, radius) {
+  if (!line?.geometry?.attributes?.position) return;
+
+  const positions = line.geometry.attributes.position.array;
+  const localDirection = direction
+    ? { x: direction.x, y: -direction.z, z: direction.y }
+    : { x: 0, y: 0.01, z: 0 };
+  const len = Math.hypot(localDirection.x, localDirection.y, localDirection.z);
+  const scale = radius * 1.8;
+  const nx = len > 1e-6 ? localDirection.x / len : 0;
+  const ny = len > 1e-6 ? localDirection.y / len : 1;
+  const nz = len > 1e-6 ? localDirection.z / len : 0;
+
+  positions[0] = 0;
+  positions[1] = 0;
+  positions[2] = 0;
+  positions[3] = nx * scale;
+  positions[4] = ny * scale;
+  positions[5] = nz * scale;
+  line.geometry.attributes.position.needsUpdate = true;
+  line.visible = true;
+}
+
+function upsertEntitySphere(id, entity, color, radius) {
+  const x = entity?.x;
+  const y = entity?.y;
+  const z = entity?.z;
   if (x === undefined || y === undefined || z === undefined) return;
 
-  let mesh = entityMeshes.get(id);
-  if (!mesh) {
-    mesh = new THREE_NS.Mesh(sphereGeometry, getEntityMaterial(color));
-    scene.add(mesh);
-    entityMeshes.set(id, mesh);
+  let group = entityMeshes.get(id);
+  if (!group) {
+    group = new THREE_NS.Group();
+
+    const sphere = new THREE_NS.Mesh(sphereGeometry, getEntityMaterial(color));
+    group.add(sphere);
+
+    const lineGeometry = new THREE_NS.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE_NS.Float32BufferAttribute([0, 0, 0, 0, 0.01, 0], 3));
+    const line = new THREE_NS.Line(lineGeometry, directionLineMaterial);
+    group.add(line);
+
+    group.userData.sphere = sphere;
+    group.userData.directionLine = line;
+
+    scene.add(group);
+    entityMeshes.set(id, group);
   } else {
-    mesh.material = getEntityMaterial(color);
+    group.userData.sphere.material = getEntityMaterial(color);
   }
 
   const p = worldToScene(x, y, z, terrainFocusY);
-  mesh.position.set(p.sx - 0.5, p.sy + 0.5 + radius * 0.2, p.sz - 0.5);
-  mesh.scale.setScalar(radius * 2);
-  mesh.userData.keep = true;
+  group.position.set(p.sx - 0.5, p.sy + 0.5 + radius * 0.2, p.sz - 0.5);
+  group.userData.sphere.scale.setScalar(radius * 2);
+  updateDirectionLine(group.userData.directionLine, getEntityDirectionVector(entity), radius);
+  group.userData.keep = true;
 }
 
 function syncEntityMeshes() {
@@ -174,7 +250,7 @@ function syncEntityMeshes() {
 
   state.foods.forEach((food, foodKey) => {
     if (!food) return;
-    upsertEntitySphere(`food-${foodKey}`, food.x, food.y, food.z, 'green', 0.22);
+    upsertEntitySphere(`food-${foodKey}`, food, 'green', 0.22);
   });
 
   state.colonies.forEach((col, colIndex) => {
@@ -182,30 +258,31 @@ function syncEntityMeshes() {
     const antColor = col.color || 'white';
 
     if (col.player) {
-      upsertEntitySphere(`player-${colIndex}`, col.player.x, col.player.y, col.player.z, antColor, 0.44);
+      upsertEntitySphere(`player-${colIndex}`, col.player, antColor, 0.44);
     }
 
     col.workers.forEach((worker, workerIndex) => {
-      upsertEntitySphere(`worker-${colIndex}-${workerIndex}`, worker.x, worker.y, worker.z, antColor, 0.38);
+      upsertEntitySphere(`worker-${colIndex}-${workerIndex}`, worker, antColor, 0.38);
     });
 
     col.soldiers.forEach((soldier, soldierIndex) => {
-      upsertEntitySphere(`soldier-${colIndex}-${soldierIndex}`, soldier.x, soldier.y, soldier.z, antColor, 0.45);
+      upsertEntitySphere(`soldier-${colIndex}-${soldierIndex}`, soldier, antColor, 0.45);
     });
 
     col.eggs.forEach((egg, eggIndex) => {
       if (!egg) return;
-      upsertEntitySphere(`egg-${colIndex}-${eggIndex}`, egg.x, egg.y, egg.z, 'white', 0.2);
+      upsertEntitySphere(`egg-${colIndex}-${eggIndex}`, egg, 'white', 0.2);
     });
   });
 
   state.spiders.forEach((spider, spiderIndex) => {
     const spiderColor = spider.timer > 0 ? 'white' : 'darkblue';
-    upsertEntitySphere(`spider-${spiderIndex}`, spider.x, spider.y, spider.z, spiderColor, 0.5);
+    upsertEntitySphere(`spider-${spiderIndex}`, spider, spiderColor, 0.5);
   });
 
   for (const [id, mesh] of entityMeshes.entries()) {
     if (mesh.userData.keep) continue;
+    mesh.userData.directionLine?.geometry?.dispose();
     scene.remove(mesh);
     entityMeshes.delete(id);
   }
@@ -236,6 +313,7 @@ export async function init3DView(containerEl) {
 
   blockGeometry = new THREE.BoxGeometry(1, 1, 1);
   sphereGeometry = new THREE.SphereGeometry(0.5, 12, 10);
+  directionLineMaterial = new THREE.LineBasicMaterial({ color: '#ffffff' });
   dirtMat = new THREE.MeshLambertMaterial({ color: '#5B3A1E' });
   rockMat = new THREE.MeshLambertMaterial({ color: '#888888' });
   nestMat = new THREE.MeshLambertMaterial({ color: '#cccccc' });
@@ -303,6 +381,7 @@ export function dispose3D() {
   clearTerrainMeshes();
 
   for (const mesh of entityMeshes.values()) {
+    mesh.userData.directionLine?.geometry?.dispose();
     scene?.remove(mesh);
   }
   entityMeshes.clear();
@@ -320,6 +399,7 @@ export function dispose3D() {
   THREE_NS = null;
   blockGeometry = null;
   sphereGeometry = null;
+  directionLineMaterial = null;
   dirtMat = null;
   rockMat = null;
   nestMat = null;
